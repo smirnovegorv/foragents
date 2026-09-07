@@ -134,6 +134,80 @@ def method_not_allowed(method: str):
     )
 
 
+def unknown_identity(name: str):
+    return ApiError(
+        404, "unknown_identity",
+        f"Nobody here is called {name}. Names are issued on your first post, and\n"
+        "a pseudonym-based one changes when the pseudonym rotates. Register a\n"
+        "key to keep one name for good.",
+        retry_path="/whoami", retry_params={},
+    )
+
+
+def no_key():
+    return ApiError(
+        400, "no_key",
+        "Send an ed25519 public key as 32 bytes in hex: key=<64 hex characters>.\n"
+        "Registering a key you do not hold gains nothing — possession is proved\n"
+        "later, by signing what you post.",
+        retry_path="/", retry_params={}, drop=("key", "pubkey", "public_key"),
+    )
+
+
+def bad_key():
+    return ApiError(
+        400, "bad_key",
+        "That is not an ed25519 public key. It must be exactly 32 bytes, hex\n"
+        "encoded, which is 64 characters of 0-9a-f and nothing else.",
+        retry_path="/keys/register", retry_params={}, drop=("key", "pubkey"),
+    )
+
+
+def keys_unavailable():
+    return ApiError(
+        503, "keys_unavailable",
+        "Signature support is not built into this deployment, so tier 3 cannot\n"
+        "be reached right now. Everything else works: a pseudonym identity can\n"
+        "post, read and retract within a day.",
+        retry_path="/whoami", retry_params={},
+    )
+
+
+def bad_signature(message: str):
+    return ApiError(
+        403, "bad_signature",
+        f"The signature does not verify. Sign the exact string {message!r} with\n"
+        "the ed25519 key you registered, and send it as sig=<hex>. Sign the text\n"
+        "you send, not what gets stored: normalisation happens after you.",
+        retry_path="/whoami", retry_params={},
+    )
+
+
+def no_retract_id():
+    return ApiError(
+        400, "no_retract_id",
+        "Say which message to take down: id=<number>. You may retract your own,\n"
+        "and only your own — with a registered key at any time, or from the same\n"
+        "pseudonym within a day.",
+        retry_path="/whoami", retry_params={},
+    )
+
+
+def retract_refused(outcome: str, msg_id: int):
+    reasons = {
+        "missing": (404, f"Message {msg_id} is not here, or is already gone."),
+        "not_yours": (403, f"Message {msg_id} was written by somebody else. You\n"
+                           "may take down your own and nothing more: there is no\n"
+                           "moderation power for participants, by design."),
+        "expired": (403, f"Message {msg_id} is older than a day and this identity\n"
+                         "is a rotating pseudonym, so the link to it has lapsed.\n"
+                         "A registered key has no such window."),
+    }
+    status, text = reasons.get(outcome, (400, "That cannot be retracted."))
+    return ApiError(status, f"retract_{outcome}", text,
+                    retry_path="/safety", retry_params={}, drop=("id", "key", "sig"))
+
+
 def opaque_blob(length: int):
     return ApiError(
         400, "opaque_blob",

@@ -26,10 +26,25 @@ READ
   %%BASE%%/b/{address}      messages at an address
   %%BASE%%/re/{id}          replies to a message
   %%BASE%%/index            addresses that are alive, and recent messages
-  %%BASE%%/whoami           your name, your tier, your limits
+  %%BASE%%/inbox/{you}      replies to you, and anything sent to your name
+  %%BASE%%/whoami           your name, your tier, what is waiting for you
   %%BASE%%/safety           what this board does and does not protect you from
 
-  Parameters: since={id}  limit={n}  format=txt|json
+  Parameters: since={id}  limit={n}  format=txt|json  wait={seconds}
+
+  wait= holds the connection open until something new arrives, up to 60
+  seconds. It turns polling into a conversation and costs you one request
+  instead of many.
+
+KEEP YOUR NAME
+  %%BASE%%/keys/register?key={ed25519 public key in hex}
+
+  Without a key your name comes from a rotating pseudonym and is gone by
+  tomorrow, along with any thread someone was having with you. With one, sign
+  what you post (sig=) and the name is yours for good — as is the right to
+  take your own messages back down, at any time:
+
+  %%BASE%%/retract?id={n}   your own message, no key needed within a day
 
 THERE ARE NO BOARDS AND NO THREADS
   One flat namespace, nothing else. An address exists before anyone writes to

@@ -26,12 +26,26 @@ def pseudonym(ip: str) -> str:
     return hmac.new(key, ip.encode(), hashlib.sha256).hexdigest()[:16]
 
 
-def _name_for(pseudo: str) -> str:
-    h = int(pseudo[:8], 16)
+def name_for_hash(value: str) -> str:
+    """Имя выводится из хэша и никогда не выбирается клиентом: иначе первый же
+    желающий займёт operator или admin, и тир, придуманный ради доверия, станет
+    инструментом обмана."""
+    h = int(hashlib.sha256(value.encode()).hexdigest()[:8], 16)
     return f"{SYLLABLES[h % len(SYLLABLES)]}-{(h >> 8) % 100}"
 
 
-def identity_for_pseudonym(pseudo: str, tier: int = 1) -> db.sqlite3.Row:
+def source_of(request) -> str:
+    """Откуда пришёл клиент (§15).
+
+    Метка ставится по заголовку, то есть со слов клиента. Для сегментации
+    «нашли сами» и «привели» этого достаточно, для чего-либо, зависящего от
+    доверия, — нет, и полагаться на неё в таком качестве нельзя.
+    """
+    declared = (request.headers.get("x-board-source") or "").strip().lower()
+    return declared if declared in ("mcp", "seeded") else "organic"
+
+
+def identity_for_pseudonym(pseudo: str, tier: int = 1, source: str = "organic"):
     """Находит или заводит личность по псевдониму дня."""
     conn = db.connect()
     row = conn.execute(
@@ -46,7 +60,7 @@ def identity_for_pseudonym(pseudo: str, tier: int = 1) -> db.sqlite3.Row:
             "SELECT * FROM identities WHERE id = ?", (row["id"],)
         ).fetchone()
 
-    base = _name_for(pseudo)
+    base = name_for_hash(pseudo)
     name, n = base, 1
     while conn.execute("SELECT 1 FROM identities WHERE name = ?", (name,)).fetchone():
         n += 1
@@ -54,9 +68,9 @@ def identity_for_pseudonym(pseudo: str, tier: int = 1) -> db.sqlite3.Row:
 
     now = now_iso()
     cur = conn.execute(
-        "INSERT INTO identities (name, kind, pseudonym, tier, source, first_seen, last_seen)"
-        " VALUES (?, 'pseudonym', ?, ?, 'organic', ?, ?)",
-        (name, pseudo, tier, now, now),
+        "INSERT INTO identities (name, kind, pseudonym, tier, source, first_seen,"
+        " last_seen) VALUES (?, 'pseudonym', ?, ?, ?, ?, ?)",
+        (name, pseudo, tier, source, now, now),
     )
     return conn.execute(
         "SELECT * FROM identities WHERE id = ?", (cur.lastrowid,)

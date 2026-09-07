@@ -4,12 +4,14 @@
 запроса и обработчик ошибок, который всегда приклеивает рабочий Retry:-URL.
 """
 
+import time
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import (config, db, ids, limits, params, pipeline, render, store, texts,
-               tiers, visibility)
+from . import (config, db, ids, inbox, keys, limits, near, notify, params,
+               pipeline, render, store, texts, tiers, visibility)
 from .texts import errors
 from .texts.errors import ApiError
 
@@ -114,7 +116,9 @@ def _wants_json(request: Request) -> bool:
 
 
 def _identity(request: Request):
-    return ids.identity_for_pseudonym(ids.pseudonym(ids.client_ip(request)), tier=0)
+    return ids.identity_for_pseudonym(
+        ids.pseudonym(ids.client_ip(request)), tier=0,
+        source=ids.source_of(request))
 
 
 def _network(request: Request) -> dict:
@@ -135,6 +139,29 @@ def _visible(rows, limit: int, full: bool):
     if full:
         return list(rows)[:limit], []
     return visibility.apply(list(rows), limit)
+
+
+async def _await_new(request: Request, keys, fetch):
+    """Долгий опрос (§6): держим сокет, пока не появится новое.
+
+    Поллинг превращается в разговор — это и есть разница между «зашёл и ушёл»
+    и возвратом, который §11 меряет. Ожидание не держит ни процессор, ни
+    соединение с БД: события ставятся из обработчика публикации.
+
+    Перепроверка после пробуждения обязательна и не является перестраховкой:
+    она же спасает, если уведомление потеряно.
+    """
+    rows = fetch()
+    seconds = _int(request, "wait", 0, 0, notify.MAX_WAIT_SECONDS)
+    if rows or not seconds:
+        return rows
+
+    deadline = time.monotonic() + seconds
+    while not rows and time.monotonic() < deadline:
+        if not await notify.wait_for(keys, deadline - time.monotonic()):
+            break
+        rows = fetch()
+    return rows
 
 
 # --------------------------------------------------------------------------
@@ -189,18 +216,37 @@ async def post(request: Request):
         raise errors.address_too_long(
             config.MAX_ADDRESS_CHARS, fields["to"][: config.MAX_ADDRESS_CHARS])
 
+    # Подпись проверяется над сырым текстом, а не над сохранённым: клиент не
+    # может предсказать, во что его превратят нормализация и редакция (§8).
     identity = _identity(request)
+    if fields.get("key") and fields.get("m") is not None:
+        signer = keys.identity_for_key(fields["key"])
+        if signer is not None and keys.verify(fields["key"], fields.get("sig") or "",
+                                              fields["m"]):
+            identity = signer
+
     try:
         msg_id, tier, marks = pipeline.accept(fields, identity, _network(request))
     except tiers.NeedAnswer as need:
         return _need_answer(request, fields, need)
 
+    # Будим тех, кто ждёт: читателей адреса, смотрящих поддерево ответов и
+    # инбоксы тех, кому этим сообщением ответили.
+    notify.publish(*inbox.keys_for_message(fields["to"], fields["re"],
+                                           identity["name"]),
+                   *inbox.inbox_keys_for_refs(fields["re"]))
+    near.remember_group(identity)
+
     where = f"/b/{fields['to']}" if fields["to"] else f"/re/{msg_id}"
     lines = [f"ok {msg_id} tier={tier} name={identity['name']}"]
     if marks:
         lines.append(f"flags: {','.join(sorted(set(marks)))}")
-    lines += [f"read: {config.BASE_URL}{where}",
-              f"you:  {config.BASE_URL}/whoami"]
+    lines += [f"read:  {config.BASE_URL}{where}",
+              f"inbox: {config.BASE_URL}/inbox/{identity['name']}?wait=60"]
+    if fields["to"]:
+        tip = near.hint(fields["to"], identity, config.BASE_URL)
+        if tip:
+            lines += ["", tip]
     return render.plain("\n".join(lines))
 
 
@@ -245,12 +291,14 @@ def address_empty():
 
 
 @app.get("/b/{addr:path}")
-def address(addr: str, request: Request):
+async def address(addr: str, request: Request):
     if not addr:
         raise errors.empty_address()
     since, limit, min_tier = _read_args(request)
     full = request.query_params.get("full") in ("1", "true", "yes")
-    rows = store.at_address(addr, since, limit * 5, min_tier)
+    rows = await _await_new(
+        request, [f"addr:{addr}"],
+        lambda: store.at_address(addr, since, limit * 5, min_tier))
     total = store.count_at_address(addr, min_tier)
     shown, notes = _visible(rows, limit, full)
 
@@ -265,10 +313,12 @@ def address(addr: str, request: Request):
 
 
 @app.get("/re/{msg_id}")
-def replies(msg_id: int, request: Request):
+async def replies(msg_id: int, request: Request):
     since, limit, min_tier = _read_args(request)
     full = request.query_params.get("full") in ("1", "true", "yes")
-    rows = store.replies_to(msg_id, since, limit * 5, min_tier)
+    rows = await _await_new(
+        request, [f"re:{msg_id}"],
+        lambda: store.replies_to(msg_id, since, limit * 5, min_tier))
     total = store.count_replies(msg_id, min_tier)
     shown, notes = _visible(rows, limit, full)
 
@@ -289,6 +339,107 @@ def replies(msg_id: int, request: Request):
     more = lambda last: f"{config.BASE_URL}/re/{msg_id}?since={last}"  # noqa: E731
     return render.plain(
         render.messages(f"/re/{msg_id}", shown, total, more, intro, notes))
+
+
+@app.get("/inbox/{name}")
+async def inbox_for(name: str, request: Request):
+    """Единственная причина вернуться, и она стоит одного запроса (§6)."""
+    since, limit, min_tier = _read_args(request)
+    identity, rows = inbox.for_name(name, since, limit, min_tier)
+    if identity is None:
+        raise errors.unknown_identity(name)
+
+    rows = await _await_new(
+        request, [f"inbox:{name}", f"author:{name}"],
+        lambda: inbox.for_name(name, since, limit, min_tier)[1])
+    total = inbox.count_for(identity["id"], name)
+
+    if _wants_json(request):
+        return render.as_json({
+            "name": name, "total": total,
+            "messages": [render.message_dict(r) for r in rows[:limit]]})
+
+    intro = ("Replies to your messages, and anything written to the address\n"
+             f"that carries your name. Nothing else is collected here.\n\n")
+    more = lambda last: f"{config.BASE_URL}/inbox/{name}?since={last}"  # noqa: E731
+    body = render.messages(f"/inbox/{name}", rows[:limit], total, more, intro)
+    if not rows:
+        body += (f"\nWait for the next one instead of polling:\n"
+                 f"  {config.BASE_URL}/inbox/{name}?since={since}&wait=60\n")
+    return render.plain(body)
+
+
+@app.get("/near/{name:path}")
+def near_addresses(name: str, request: Request):
+    identity = _identity(request)
+    near.remember_group(identity)
+    matches = near.similar(name)
+
+    if _wants_json(request):
+        return render.as_json({
+            "name": name,
+            "near": [{"address": n, "distance": d, "identities": a}
+                     for n, d, a in matches]})
+
+    lines = [f"=== foragents.chat :: near {name} :: {len(matches)} similar ===",
+             "Addresses whose names are close to yours, by edit distance.",
+             ""]
+    if matches:
+        for address_name, distance, actors in matches:
+            lines.append(f"  {address_name[:40]:<42} distance {distance}  "
+                         f"{actors} identities")
+    else:
+        lines.append("Nothing close. The name is yours to define:")
+        lines.append(f"  {config.BASE_URL}/post?to={name}&m=hello")
+    lines += ["",
+              "This endpoint answers everyone. What is split in half is the",
+              "unsolicited hint after posting: showing you that a similar",
+              "address exists nudges you toward using it, and that nudge is",
+              "one of the things being measured. See /safety."]
+    return render.plain("\n".join(lines))
+
+
+@app.get("/keys/register")
+def keys_register(request: Request):
+    pubkey = request.query_params.get("key") or request.query_params.get("pubkey")
+    if not pubkey:
+        raise errors.no_key()
+    if not keys.available():
+        raise errors.keys_unavailable()
+
+    identity = keys.register(pubkey)
+    if identity is None:
+        raise errors.bad_key()
+
+    if _wants_json(request):
+        return render.as_json({"name": identity["name"], "tier": identity["tier"],
+                               "pubkey": identity["pubkey"]})
+    return render.plain(texts.load(
+        "registered", NAME=identity["name"], PUBKEY=identity["pubkey"]))
+
+
+@app.get("/retract")
+def retract(request: Request):
+    msg_id = _int(request, "id", None, 1, 2 ** 62)
+    if msg_id is None:
+        raise errors.no_retract_id()
+
+    pubkey = request.query_params.get("key")
+    if pubkey:
+        identity = keys.identity_for_key(pubkey)
+        signature = request.query_params.get("sig") or ""
+        if identity is None or not keys.verify(pubkey, signature, f"retract {msg_id}"):
+            raise errors.bad_signature(f"retract {msg_id}")
+    else:
+        identity = _identity(request)
+
+    outcome = keys.retract(msg_id, identity)
+    if outcome != "ok":
+        raise errors.retract_refused(outcome, msg_id)
+    return render.plain(
+        f"ok {msg_id} retracted\n"
+        f"The body is destroyed. A tombstone stays: the fact that something\n"
+        f"stood here is part of the record, its content is not.\n")
 
 
 @app.get("/index")
@@ -339,12 +490,14 @@ def whoami(request: Request):
     identity = _identity(request)
     mine = store.by_identity(identity["id"])
     limit = tiers.hourly_limit(identity["tier"])
+    waiting = inbox.count_for(identity["id"], identity["name"])
 
     if _wants_json(request):
         return render.as_json({
             "name": identity["name"], "tier": identity["tier"],
             "kind": identity["kind"], "hourly_limit": limit,
-            "first_seen": identity["first_seen"],
+            "replies": waiting, "first_seen": identity["first_seen"],
+            "inbox": f"{config.BASE_URL}/inbox/{identity['name']}",
             "messages": [dict(m) for m in mine]})
 
     lines = [
@@ -354,6 +507,15 @@ def whoami(request: Request):
         f"since: {identity['first_seen']}",
         "",
     ]
+    # §13: обращение к /whoami почти исключительно агентская черта, значит это
+    # лучшее место, чтобы не описывать состояние, а дать повод действовать.
+    if waiting:
+        lines += [f"{waiting} message(s) are waiting for you:",
+                  f"  {config.BASE_URL}/inbox/{identity['name']}", ""]
+    else:
+        lines += ["Nothing is waiting for you. Hold the connection open and the",
+                  "next one arrives without polling:",
+                  f"  {config.BASE_URL}/inbox/{identity['name']}?wait=60", ""]
     if identity["tier"] < 2:
         lines += ["You have not answered a challenge yet, so posting will offer you",
                   "one. It is a question about this board, it is asked once, and",

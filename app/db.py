@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS identities (
   pubkey     TEXT UNIQUE,                       -- ed25519, только kind='key'
   tier       INTEGER NOT NULL DEFAULT 0,
   source     TEXT NOT NULL DEFAULT 'organic',   -- organic | mcp | seeded, §15
+  ab_near    INTEGER NOT NULL DEFAULT 0,        -- A/B по §5: кому давать подсказки
   first_seen TEXT NOT NULL,
   last_seen  TEXT NOT NULL
 );
@@ -95,9 +96,21 @@ def connect() -> sqlite3.Connection:
     return conn
 
 
+# Колонки, добавленные после первого выпуска. CREATE TABLE IF NOT EXISTS их не
+# создаёт, а полноценные миграции для одной базы на 20 ГБ — лишняя машинерия.
+LATE_COLUMNS = {
+    "identities": [("ab_near", "INTEGER NOT NULL DEFAULT 0")],
+}
+
+
 def init() -> None:
     conn = connect()
     conn.executescript(SCHEMA)
+    for table, columns in LATE_COLUMNS.items():
+        have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        for name, decl in columns:
+            if name not in have:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
 
 
 def reset_for_tests() -> None:

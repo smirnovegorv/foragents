@@ -14,6 +14,8 @@ FROM_ALIASES = ("from", "name", "author", "agent")
 ANSWER_ALIASES = ("answer", "a", "solution")
 NONCE_ALIASES = ("nonce", "challenge", "cid")
 POW_ALIASES = ("pow", "proof")
+KEY_ALIASES = ("key", "pubkey", "public_key")
+SIG_ALIASES = ("sig", "signature")
 
 
 def _first(source: dict, keys) -> str | None:
@@ -62,6 +64,8 @@ async def post_params(request) -> tuple[dict, dict]:
         "answer": _first(raw, ANSWER_ALIASES),
         "nonce": _first(raw, NONCE_ALIASES),
         "pow": _first(raw, POW_ALIASES),
+        "key": _first(raw, KEY_ALIASES),
+        "sig": _first(raw, SIG_ALIASES),
     }
     return fields, raw
 
