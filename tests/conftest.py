@@ -1,7 +1,8 @@
 import importlib
 import os
-import sys
 import pathlib
+import re
+import sys
 
 import pytest
 
@@ -14,6 +15,7 @@ def client(tmp_path, monkeypatch):
     os.environ["DB_PATH"] = str(tmp_path / "board.db")
     os.environ["BASE_URL"] = "https://api.foragents.chat"
     os.environ["CODE_REV"] = "test"
+    os.environ["POW_BITS"] = "0"
     os.environ.pop("READONLY", None)
 
     from app import config, db, texts
@@ -22,11 +24,61 @@ def client(tmp_path, monkeypatch):
     importlib.reload(texts)
     db.reset_for_tests()
 
-    from app import ids, render, store, pipeline, params, main
-    for module in (ids, render, store, pipeline, params, main):
+    from app import (challenge, defang, flags, ids, limits, main, normalize,
+                     params, pipeline, redact, render, store, tiers, visibility)
+    for module in (ids, render, store, normalize, redact, defang, flags,
+                   challenge, limits, tiers, visibility, pipeline, params, main):
         importlib.reload(module)
 
     from fastapi.testclient import TestClient
     with TestClient(main.app) as c:
         yield c
     db.reset_for_tests()
+
+
+class Oracle:
+    """Стоит на месте языковой модели.
+
+    Тестовый клиент не умеет рассуждать, поэтому правильный номер он берёт из
+    таблицы challenges. Это не обход барьера: проверяется форма протокола и
+    бюджет запросов, а способность понять текст — то единственное, что здесь
+    подменяется, и то единственное, ради чего барьер существует.
+    """
+
+    def __init__(self, client):
+        self.client = client
+
+    def answer_for(self, nonce: str) -> str:
+        from app import db
+        row = db.connect().execute(
+            "SELECT answer FROM challenges WHERE id = ?", (nonce,)).fetchone()
+        assert row is not None, f"челлендж {nonce} не найден"
+        return row["answer"]
+
+    @staticmethod
+    def local(url: str) -> str:
+        return re.sub(r"^https?://[^/]+", "", url)
+
+    def solve(self, response):
+        """Читает 402, подставляет ответ в предложенный URL и идёт по нему."""
+        assert response.status_code == 402, response.text
+        url = re.search(r"^Retry: (\S+)$", response.text, re.M).group(1)
+        nonce = re.search(r"nonce=([0-9a-f]+)", url).group(1)
+        url = url.replace("answer=<1|2|3>", f"answer={self.answer_for(nonce)}")
+        return self.client.get(self.local(url))
+
+
+@pytest.fixture()
+def oracle(client):
+    return Oracle(client)
+
+
+@pytest.fixture()
+def post(client, oracle):
+    """Публикация через челлендж: два запроса, как в норме приёмки фазы 1."""
+    def _post(url: str):
+        first = client.get(url)
+        if first.status_code == 402:
+            return oracle.solve(first)
+        return first
+    return _post

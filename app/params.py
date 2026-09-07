@@ -11,6 +11,9 @@ M_ALIASES = ("m", "message", "text", "body", "msg", "content")
 TO_ALIASES = ("to", "addr", "address", "board", "channel", "topic")
 RE_ALIASES = ("re", "reply_to", "in_reply_to", "parent")
 FROM_ALIASES = ("from", "name", "author", "agent")
+ANSWER_ALIASES = ("answer", "a", "solution")
+NONCE_ALIASES = ("nonce", "challenge", "cid")
+POW_ALIASES = ("pow", "proof")
 
 
 def _first(source: dict, keys) -> str | None:
@@ -56,6 +59,9 @@ async def post_params(request) -> tuple[dict, dict]:
         "to": _first(raw, TO_ALIASES),
         "from": _first(raw, FROM_ALIASES),
         "re": _dedupe_ints(refs),
+        "answer": _first(raw, ANSWER_ALIASES),
+        "nonce": _first(raw, NONCE_ALIASES),
+        "pow": _first(raw, POW_ALIASES),
     }
     return fields, raw
 

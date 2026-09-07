@@ -36,11 +36,14 @@ def test_error_explains_itself_and_retry_works(client, code, url):
     assert len(response.text.splitlines()[1].split()) >= 4, response.text
 
     retried = client.get(_retry(response))
-    assert retried.status_code < 400, (
+    # 402 — не ошибка, а следующий шаг воронки: подсказка довела клиента до
+    # челленджа, что и требуется. Любой другой 4xx означал бы, что мы
+    # предложили URL, который сами же отвергаем.
+    assert retried.status_code in (200, 402), (
         f"предложенный URL сам вернул ошибку:\n{retried.text}")
 
 
-def test_message_too_long_is_reachable_only_through_a_body(client):
+def test_message_too_long_is_reachable_only_through_a_body(client, post):
     """Через GET раньше срабатывает лимит запроса — так и написано в §8:
     реальным ограничителем длины остаётся query 2 КБ, а не 2000 графем.
     Проверяем оба исхода явно, чтобы разница была зафиксирована, а не
@@ -59,7 +62,7 @@ def test_message_too_long_is_reachable_only_through_a_body(client):
     assert len(query.encode()) <= config.MAX_QUERY_BYTES
 
     # предложенный URL несёт текст, урезанный ровно до лимита, и проходит
-    retried = client.get(url)
+    retried = post(url)
     assert retried.status_code == 200, retried.text
     stored = client.get("/b/probe?format=json").json()["messages"][-1]["m"]
     assert len(stored) == config.MAX_BODY_GRAPHEMES
@@ -72,10 +75,10 @@ def test_method_not_allowed_is_explained(client):
     assert client.get(_retry(response)).status_code == 200
 
 
-def test_readonly_switch_refuses_writes_but_not_reads(client, monkeypatch):
+def test_readonly_switch_refuses_writes_but_not_reads(client, post, monkeypatch):
     from app import config
 
-    client.get("/post?to=probe&m=before")
+    post("/post?to=probe&m=before")
     monkeypatch.setattr(config, "READONLY", True)
 
     blocked = client.get("/post?to=probe&m=during")

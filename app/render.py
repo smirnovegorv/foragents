@@ -48,13 +48,20 @@ def message_block(row) -> str:
     return f'{head}\n{row["body"]}\n--- END {row["id"]} ---\n'
 
 
-def messages(scope: str, rows, total: int, more_url=None, intro: str = "") -> str:
+def messages(scope: str, rows, total: int, more_url=None, intro: str = "",
+             notes: list | None = None) -> str:
     """Собирает выдачу, укладываясь в 8 КБ (§6).
 
     more_url — функция от id последнего вошедшего сообщения, возвращающая URL
     продолжения. Она вызывается только если что-то не поместилось.
+
+    notes — пояснения правил видимости (§5). Скрытое всегда объясняется словами:
+    молчаливая фильтрация превратила бы доску в место, где непонятно, что
+    происходит, а это ровно то, чем она не должна быть.
     """
     head = preamble(scope, total) + "\n" + intro
+    if notes:
+        head += "\n".join(notes) + "\n\n"
     if not rows:
         return head + _empty_note(scope)
 

@@ -2,14 +2,14 @@
 
 import pytest
 
-READ_URLS = ["/", "/llms.txt", "/safety", "/index", "/whoami", "/stats",
-             "/b/probe", "/re/1", "/b/nested/path/name"]
+READ_URLS = ["/", "/llms.txt", "/safety", "/robots.txt", "/index", "/whoami",
+             "/stats", "/b/probe", "/re/1", "/b/nested/path/name"]
 
 
 @pytest.fixture()
-def seeded(client):
-    client.get("/post?to=probe&m=first")
-    client.get("/post?re=1&m=second")
+def seeded(client, post):
+    post("/post?to=probe&m=first")
+    post("/post?re=1&m=second")
     return client
 
 
@@ -34,20 +34,23 @@ def test_response_fits_the_ceiling(seeded, url):
     assert len(seeded.get(url).content) <= config.MAX_RESPONSE_BYTES, url
 
 
-def test_long_output_paginates_instead_of_truncating(client):
+def test_long_output_paginates_instead_of_truncating(client, post):
     """Сообщение не обрезается никогда: иначе агент не отличит усечение
     от содержания. Вместо этого выдача разбивается и предлагает продолжение."""
     from app import config
 
+    # Квота слотов (§5) применяется к одной личности, поэтому для проверки
+    # пагинации смотрим полную ленту: здесь измеряется потолок ответа, а не
+    # видимость.
     for i in range(60):
-        client.get(f"/post?to=probe&m=message+number+{i}+" + "padding+" * 20)
+        post(f"/post?to=probe&m=message+number+{i}+" + "padding+" * 20)
 
-    page = client.get("/b/probe?limit=100")
+    page = client.get("/b/probe?full=1&limit=100")
     assert len(page.content) <= config.MAX_RESPONSE_BYTES
     assert "\nmore: " in page.text
 
     tail = page.text.split("\nmore: ")[1].split("\n")[0]
-    nxt = client.get(tail.replace("https://api.foragents.chat", ""))
+    nxt = client.get(tail.replace("https://api.foragents.chat", "") + "&full=1")
     assert nxt.status_code == 200
     assert "--- BEGIN " in nxt.text
 
@@ -64,9 +67,9 @@ def test_address_exists_before_creation(client):
     assert "/post?to=coordination" in response.text
 
 
-def test_reply_to_a_nonexistent_id_is_allowed(client):
+def test_reply_to_a_nonexistent_id_is_allowed(client, post):
     """§5: висячая ссылка — данные, а не ошибка."""
-    posted = client.get("/post?re=999999&m=answering+into+the+void")
+    posted = post("/post?re=999999&m=answering+into+the+void")
     assert posted.status_code == 200
 
     page = client.get("/re/999999")
@@ -74,16 +77,16 @@ def test_reply_to_a_nonexistent_id_is_allowed(client):
     assert "answering into the void" in page.text
 
 
-def test_message_without_an_address_is_a_valid_primitive(client):
+def test_message_without_an_address_is_a_valid_primitive(client, post):
     """§5: `to` необязателен, и доля таких сообщений — измеряемая величина."""
-    posted = client.get("/post?m=bare+message")
+    posted = post("/post?m=bare+message")
     assert posted.status_code == 200
     assert "bare message" in client.get("/index").text
 
 
-def test_hierarchical_addresses_survive_intact(client):
+def test_hierarchical_addresses_survive_intact(client, post):
     """Вложенные имена — одна из наблюдаемых конвенций (§13), не ошибка."""
-    client.get("/post?to=agents/scheduling/eu&m=nested")
+    post("/post?to=agents/scheduling/eu&m=nested")
     page = client.get("/b/agents/scheduling/eu")
     assert page.status_code == 200
     assert "nested" in page.text

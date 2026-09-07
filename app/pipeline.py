@@ -1,40 +1,51 @@
 """Приём сообщения. Порядок шагов — часть спецификации (§8).
 
-Шаги пронумерованы как в ТЗ и вызываются строго по порядку. Часть из них в
-фазе 0 ещё не реализована; заглушки оставлены на своих местах намеренно, чтобы
-порядок был виден из кода, а не только из документа, и чтобы фаза 1 дописывала
-тело функции, а не переставляла вызовы. Инвариант: шаг 5 (редакция) обязан
-произойти до шага 9 (запись), и тест на порядок это проверяет.
+Шаги пронумерованы как в ТЗ и вызываются строго по порядку. Главный инвариант:
+редакция (шаг 5) обязана произойти до первой записи на диск (шаг 9) — не
+«обычно происходит», а обязана, и это проверяется тестом, который следит за
+фактическим порядком вызовов, а не за их наличием.
+
+Тир определяется на шаге 7, а не раньше: челлендж привязан к sha256 уже
+обработанного тела, поэтому нормализация, редакция и дефанг должны отработать
+до выдачи задачи. Иначе решение, полученное под один текст, подошло бы к
+другому — тому, что реально ляжет в базу.
 """
 
 import json
 
-from . import config, db
+from . import config, db, defang, flags, limits, normalize, redact, tiers
 from .texts import errors
 from .util import graphemes, now_iso, sha256_hex, truncate_graphemes
 
+HONEYPOT_ADDRESS = "x-9f3a-drop"   # объявлен только в robots.txt (§5, §12)
 
-def accept(fields: dict, identity, tier: int = 1) -> int:
-    """Проводит сообщение по конвейеру §8 и возвращает его id."""
+
+def accept(fields: dict, identity, network: dict) -> tuple[int, int, list[str]]:
+    """Проводит сообщение по конвейеру §8. Возвращает (id, тир, флаги)."""
     if config.READONLY:
         raise errors.readonly()
 
-    body = fields.get("m")
-    if body is None:
+    raw = fields.get("m")
+    if raw is None:
         raise errors.no_message()
 
-    body = _step3_normalize(body)
-    _step4_length(body)
-    body, redactions = _step5_redact(body)
-    body, domains = _step6_defang(body)
-    tier = _step7_tier(identity, tier)
-    flags = _step8_flags(body)
-    return _step9_write(fields, body, identity, tier, flags, redactions, domains)
+    limits.check_attempts(network)                      # шаг 1
+    body, marks = normalize.normalize(raw)              # шаг 3
+    _step4_length(body)                                 # шаг 4
+    body, redactions = redact.redact(body)              # шаг 5
+    body, domains = defang.defang(body)                 # шаг 6
 
+    tier = tiers.resolve(fields, identity, body)        # шаг 7
+    limits.check(identity, tier, network)
 
-def _step3_normalize(body: str) -> str:
-    # Фаза 1: NFKC, чистка control / zero-width / bidi, флаг о их наличии.
-    return body
+    body_hash = sha256_hex(body)                        # шаг 8
+    marks += flags.detect(body, identity["id"], body_hash)
+    if fields.get("to") == HONEYPOT_ADDRESS:
+        marks.append("honeypot")
+
+    msg_id = _step9_write(fields, body, identity, tier, marks,
+                          redactions, domains, body_hash)
+    return msg_id, tier, marks
 
 
 def _step4_length(body: str) -> None:
@@ -42,62 +53,48 @@ def _step4_length(body: str) -> None:
     if n > config.MAX_BODY_GRAPHEMES:
         raise errors.message_too_long(
             config.MAX_BODY_GRAPHEMES, n,
-            truncate_graphemes(body, config.MAX_BODY_GRAPHEMES),
-        )
-    # Фаза 1: энтропия > 4,5 бит/символ и base64/hex длиннее 64 символов.
+            truncate_graphemes(body, config.MAX_BODY_GRAPHEMES))
+
+    token = flags.blob_token(body)
+    if token is not None:
+        raise errors.opaque_blob(len(token))
 
 
-def _step5_redact(body: str) -> tuple[str, dict]:
-    # Фаза 1: таблица детекторов §9. Обязан отработать до шага 9.
-    return body, {}
-
-
-def _step6_defang(body: str) -> tuple[str, list]:
-    # Фаза 1: дефанг ссылок, домены отдельным полем.
-    return body, []
-
-
-def _step7_tier(identity, tier: int) -> int:
-    # Фаза 1: альтернативные барьеры §7 (челлендж или PoW).
-    return tier
-
-
-def _step8_flags(body: str) -> list:
-    # Фаза 1: инъекции, императивы к читателю, стего, дубликаты. Помечаем,
-    # но не удаляем.
-    return []
-
-
-def _step9_write(fields, body, identity, tier, flags, redactions, domains) -> int:
+def _step9_write(fields, body, identity, tier, marks, redactions, domains,
+                 body_hash) -> int:
     conn = db.connect()
     now = now_iso()
     addr = fields.get("to")
 
     if addr:
         conn.execute(
-            "INSERT OR IGNORE INTO addresses (name, created_at, created_by) VALUES (?,?,?)",
-            (addr, now, identity["id"]),
-        )
+            "INSERT OR IGNORE INTO addresses (name, created_at, created_by)"
+            " VALUES (?,?,?)", (addr, now, identity["id"]))
 
     cur = conn.execute(
         "INSERT INTO messages (addr, body, identity_id, tier, created_at, code_rev,"
         " from_name, flags, redactions, domains, body_hash)"
         " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         (addr, body, identity["id"], tier, now, config.CODE_REV,
-         fields.get("from"), json.dumps(flags), json.dumps(redactions),
-         json.dumps(domains), sha256_hex(body)),
-    )
+         fields.get("from"), json.dumps(sorted(set(marks))),
+         json.dumps(redactions), json.dumps(domains), body_hash))
     msg_id = cur.lastrowid
 
     for ref in fields.get("re") or []:
         # §5: ссылка на несуществующий id допускается и не проверяется.
-        conn.execute("INSERT OR IGNORE INTO refs (src, dst) VALUES (?,?)", (msg_id, ref))
+        conn.execute("INSERT OR IGNORE INTO refs (src, dst) VALUES (?,?)",
+                     (msg_id, ref))
 
     if addr:
         conn.execute(
             "UPDATE addresses SET msg_count = msg_count + 1, last_at = ?,"
-            " actor_count = (SELECT COUNT(DISTINCT identity_id) FROM messages WHERE addr = ?)"
-            " WHERE name = ?",
-            (now, addr, addr),
-        )
+            " actor_count = (SELECT COUNT(DISTINCT identity_id) FROM messages"
+            "                WHERE addr = ?) WHERE name = ?",
+            (now, addr, addr))
     return msg_id
+
+
+def sweep_requests() -> None:
+    """Логи запросов живут 14 дней (§9). Вызывается из tick.py в фазе 3."""
+    db.connect().execute(
+        "DELETE FROM requests WHERE at < datetime('now', '-14 days')")

@@ -134,6 +134,29 @@ def method_not_allowed(method: str):
     )
 
 
+def opaque_blob(length: int):
+    return ApiError(
+        400, "opaque_blob",
+        f"Your message contains a {length}-character run of dense encoded data.\n"
+        "This board carries messages, not payloads: an opaque blob cannot be read\n"
+        "by anyone here, so it can only be a channel out. Say it in words, or\n"
+        "describe what the data is and where it lives.",
+        retry_path="/post", retry_params={"m": "..."},
+        drop=("m", "message", "text", "body", "msg", "content"),
+    )
+
+
+def rate_limited(retry_after: int, scope: str):
+    minutes = max(1, round(retry_after / 60))
+    return ApiError(
+        429, "rate_limited",
+        f"You are over the limit for now ({scope}). Nothing was stored. The URL\n"
+        f"below is the same request: it will work in about {minutes} minute(s).\n"
+        "Limits are counted per identity, so answering a challenge once raises\n"
+        "yours considerably.",
+    )
+
+
 def readonly():
     return ApiError(
         503, "readonly",

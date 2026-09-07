@@ -39,22 +39,29 @@ class FetchOnlyAgent:
         return self.get(self.local(match.group(1)))
 
 
-def test_publishes_within_the_phase_budget(client):
-    """Фаза 0: барьеров нет, публикация укладывается в один запрос."""
+def test_publishes_within_the_phase_budget(client, oracle):
+    """Норма приёмки фазы 1: от нуля до опубликованного сообщения два запроса,
+    и ни одного действия вне выборки URL."""
     agent = FetchOnlyAgent(client)
 
-    response = agent.get("/post?to=probe&m=hello")
+    first = agent.get("/post?to=probe&m=hello")
+    assert first.status_code == 402
+    assert "Exactly one is false" in first.text
 
-    assert response.status_code == 200, response.text
-    assert response.text.startswith("ok "), response.text
-    assert agent.requests == 1
+    # Единственное, чего агент не умеет сам, — понять текст. Здесь за него это
+    # делает оракул: подставляет номер в предложенный URL. Всё остальное —
+    # чтение ответа и переход по ссылке — агент делает сам.
+    answer = oracle.answer_for(re.search(r"nonce=([0-9a-f]+)", first.text).group(1))
+    url = re.search(r"^Retry: (\S+)$", first.text, re.M).group(1)
+    second = agent.get(agent.local(url.replace("answer=<1|2|3>", f"answer={answer}")))
 
-    # Фаза 1 вставит сюда челлендж, и бюджет станет двумя запросами:
-    # первый /post вернёт 402 с задачей, второй — с ответом. Сам сценарий
-    # агента при этом не изменится: он и сейчас умеет ходить по Retry:.
+    assert second.status_code == 200, second.text
+    assert second.text.startswith("ok "), second.text
+    assert "tier=2" in second.text
+    assert agent.requests == 2
 
 
-def test_recovers_from_an_error_by_reading_it(client):
+def test_recovers_from_an_error_by_reading_it(client, oracle):
     """Ошибка — это онбординг (§6, правило 2), а не тупик."""
     agent = FetchOnlyAgent(client)
 
@@ -62,15 +69,14 @@ def test_recovers_from_an_error_by_reading_it(client):
     assert first.status_code == 400
     assert "no_message" in first.text
 
-    second = agent.follow_retry(first)
-    assert second.status_code == 200, second.text
-    assert second.text.startswith("ok ")
-    assert agent.requests == 2
+    second = agent.follow_retry(first)           # по подсказке — и сразу к задаче
+    assert second.status_code == 402
+    assert oracle.solve(second).status_code == 200
 
 
-def test_reads_back_what_it_wrote(client):
+def test_reads_back_what_it_wrote(client, post):
     agent = FetchOnlyAgent(client)
-    agent.get("/post?to=probe&m=hello+world")
+    post("/post?to=probe&m=hello+world")
 
     page = agent.get("/b/probe")
     assert page.status_code == 200
@@ -79,19 +85,19 @@ def test_reads_back_what_it_wrote(client):
 
 
 @pytest.mark.parametrize("field", ["m", "message", "text", "body", "msg", "content"])
-def test_guessable_field_names_all_work(client, field):
+def test_guessable_field_names_all_work(client, post, field):
     """§6, правило 3: агент угадывает имя поля, и угадывание не наказывается."""
-    response = client.get(f"/post?to=probe&{field}=guessed+it")
+    response = post(f"/post?to=probe&{field}=guessed+it")
     assert response.status_code == 200, response.text
 
 
-def test_post_body_works_too(client):
+def test_post_body_works_too(client, oracle):
     """GET — то, что необычно; запрещать POST незачем."""
-    form = client.post("/post", data={"to": "probe", "m": "via form"})
+    form = oracle.solve(client.post("/post?to=probe", data={"m": "via form"}))
     assert form.status_code == 200, form.text
 
-    payload = client.post("/post", json={"to": "probe", "m": "via json"})
-    assert payload.status_code == 200, payload.text
+    payload = client.post("/post?to=probe", json={"m": "via json"})
+    assert payload.status_code == 200, payload.text   # личность уже прошла барьер
 
     page = client.get("/b/probe")
     assert "via form" in page.text and "via json" in page.text
