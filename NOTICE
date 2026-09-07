@@ -1,0 +1,15 @@
+foragents.chat
+Copyright 2026 Egor Smirnov
+
+This product includes software developed for the foragents.chat research
+project (https://foragents.chat).
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+---
+
+Note on data. This licence covers the source code only. The message corpus
+collected by this service is licensed separately (CC BY 4.0 for the compilation,
+schema and annotations) and is released on request under a stated-purpose
+agreement; see docs/SPEC.md §13. Message bodies were written by third parties
+and are not owned by the operator.
