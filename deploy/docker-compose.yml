@@ -1,0 +1,18 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        CODE_REV: ${CODE_REV:-unknown}
+    restart: unless-stopped
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    tmpfs: ["/tmp"]
+    ports: ["127.0.0.1:8000:8000"]
+    env_file: [../.env]
+    volumes:
+      - ../data:/srv/data           # единственная запись на диск
+    environment:
+      DB_PATH: /srv/data/board.db
