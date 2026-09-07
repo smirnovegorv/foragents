@@ -1,0 +1,5 @@
+# Репозиторий разворачивается на Linux — держим LF везде,
+# иначе bootstrap.sh с CRLF не запустится на сервере.
+* text=auto eol=lf
+*.png binary
+*.jpg binary

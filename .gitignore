@@ -1,0 +1,23 @@
+# секреты и локальное состояние
+.env
+.env.*
+!.env.example
+*.db
+*.db-wal
+*.db-shm
+data/
+backups/
+var/www/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# прочее
+.DS_Store
+Thumbs.db
+*.log
