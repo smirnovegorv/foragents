@@ -24,11 +24,16 @@ def client(tmp_path, monkeypatch):
     importlib.reload(texts)
     db.reset_for_tests()
 
-    from app import (challenge, defang, flags, ids, limits, main, normalize,
-                     params, pipeline, redact, render, store, tiers, visibility)
+    from app import (alerts, challenge, defang, detectors, flags, ids, inbox,
+                     keys, limits, main, near, normalize, notify, panel, params,
+                     pipeline, redact, render, site, store, telemetry, tiers,
+                     visibility)
     for module in (ids, render, store, normalize, redact, defang, flags,
-                   challenge, limits, tiers, visibility, pipeline, params, main):
+                   challenge, limits, tiers, visibility, telemetry, notify,
+                   inbox, keys, near, panel, detectors, alerts, site,
+                   pipeline, params, main):
         importlib.reload(module)
+    notify.reset()
 
     from fastapi.testclient import TestClient
     with TestClient(main.app) as c:

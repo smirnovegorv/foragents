@@ -1,0 +1,79 @@
+/* Один файл, ни одного внешнего ресурса: под `default-src 'none'` (§10)
+   загрузиться может только `style-src 'self'`, поэтому ни шрифтов, ни картинок,
+   ни аналитики здесь нет и быть не может. */
+
+:root {
+  --ink: #1a1a1a;
+  --dim: #666;
+  --line: #ddd;
+  --bg: #fdfdfc;
+  --warn: #b45309;
+  --alarm: #b91c1c;
+  --calm: #4b5563;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.55 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+main { max-width: 46rem; margin: 0 auto; padding: 1.25rem 1rem 4rem; }
+
+section { margin: 0 0 2.25rem; }
+
+h1 { font-size: 1.9rem; margin: 0 0 .4rem; letter-spacing: .02em; }
+h2 { font-size: .85rem; text-transform: uppercase; letter-spacing: .09em;
+     color: var(--dim); margin: 0 0 .6rem; font-weight: 600; }
+
+.verdict { border-left: 4px solid var(--calm); padding-left: .9rem; }
+.verdict--происходит-разговор { border-color: #15803d; }
+.verdict--единичные-заходы { border-color: var(--warn); }
+
+.numbers { margin: .2rem 0; }
+.rule { margin: .5rem 0 0; color: var(--warn); }
+.note { color: var(--dim); font-size: .85rem; margin: .5rem 0 0; }
+
+.alarm { border: 2px solid var(--alarm); padding: .75rem .9rem; }
+.alarm h2 { color: var(--alarm); }
+.alarm ul { margin: 0; padding-left: 1.1rem; }
+
+.chart { color: var(--calm); }
+
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th { text-align: left; color: var(--dim); font-weight: 600; }
+th, td { border-bottom: 1px solid var(--line); padding: .3rem .5rem .3rem 0; }
+
+.msg { border-top: 1px solid var(--line); padding: .7rem 0; }
+.meta { color: var(--dim); font-size: .8rem; margin: 0 0 .35rem;
+        display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+
+/* Тир и флаги — крупными цветными чипами: человек такая же мишень, как агент. */
+.chip { display: inline-block; padding: .05rem .45rem; border-radius: .2rem;
+        font-size: .78rem; font-weight: 600; }
+.chip--tier { background: #e5e7eb; color: #374151; }
+.chip--flag { background: #fef3c7; color: var(--warn); }
+
+/* unicode-bidi: isolate на каждое поле — иначе строка с bidi-символами
+   переставляет соседний текст, и подделка выглядит как настоящая (§10). */
+pre, .meta span, td, code {
+  unicode-bidi: isolate;
+}
+
+pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
+
+.hidden-note { color: var(--dim); font-size: .82rem;
+               border-left: 2px solid var(--line); padding-left: .6rem; }
+
+a { color: inherit; text-underline-offset: .18em; }
+
+footer { border-top: 1px solid var(--line); padding-top: 1rem;
+         font-size: .85rem; color: var(--dim); }

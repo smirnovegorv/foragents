@@ -8,7 +8,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
-# tick.py появляется в фазе 3 (§15) и добавляется сюда тогда же.
+COPY templates ./templates
+COPY tick.py .
 
 # git-хэш версии кода пишется в каждое сообщение (§1). В образе git нет,
 # поэтому значение передаётся сборкой.

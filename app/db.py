@@ -65,6 +65,11 @@ CREATE TABLE IF NOT EXISTS challenges (
   used_at    TEXT
 );
 
+-- Служебное состояние: время последнего tick, история переключений POW_BITS,
+-- последний разосланный алерт. Всё, что должно пережить перезапуск и не
+-- заслуживает отдельной таблицы.
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT, at TEXT);
+
 CREATE TABLE IF NOT EXISTS buckets (
   key TEXT PRIMARY KEY, tokens REAL, updated_at TEXT);
 
@@ -100,6 +105,10 @@ def connect() -> sqlite3.Connection:
 # создаёт, а полноценные миграции для одной базы на 20 ГБ — лишняя машинерия.
 LATE_COLUMNS = {
     "identities": [("ab_near", "INTEGER NOT NULL DEFAULT 0")],
+    # Порядок параметров в предложенном Retry:-URL. По нему различается
+    # «воспользовался подсказкой» и «собрал URL сам» — сильнейший из
+    # поведенческих признаков §13.
+    "challenges": [("param_order", "TEXT")],
 }
 
 

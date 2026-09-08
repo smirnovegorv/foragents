@@ -10,8 +10,9 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import (config, db, ids, inbox, keys, limits, near, notify, params,
-               pipeline, render, store, texts, tiers, visibility)
+from . import (challenge, config, db, ids, inbox, keys, limits, near, notify,
+               params, pipeline, render, store, telemetry, texts, tiers,
+               visibility)
 from .texts import errors
 from .texts.errors import ApiError
 
@@ -86,13 +87,24 @@ async def _validation_error(request: Request, exc: RequestValidationError):
 
 @app.middleware("http")
 async def _guards(request: Request, call_next):
+    started = time.perf_counter()
     query = request.url.query or ""
     if len(query.encode()) > config.MAX_QUERY_BYTES:
-        return _error_response(
+        response = _error_response(
             request,
             errors.query_too_large(config.MAX_QUERY_BYTES, len(query.encode())))
-    response = await call_next(request)
+    else:
+        response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
+
+    # Шаг 2 конвейера §8. Исход публикации кладёт сам обработчик — он один
+    # знает, воспользовался ли клиент подсказкой; здесь фиксируется остальное.
+    outcome = getattr(request.state, "outcome", None)
+    if outcome is None and request.url.path == "/post":
+        outcome = telemetry.LEFT if response.status_code >= 400 else None
+    telemetry.record(request, response.status_code, started,
+                     outcome or (telemetry.READ if request.method == "GET"
+                                 and request.url.path != "/post" else outcome))
     return response
 
 
@@ -225,10 +237,23 @@ async def post(request: Request):
                                               fields["m"]):
             identity = signer
 
+    order = telemetry.param_order(request)
     try:
         msg_id, tier, marks = pipeline.accept(fields, identity, _network(request))
     except tiers.NeedAnswer as need:
-        return _need_answer(request, fields, need)
+        request.state.outcome = telemetry.CHALLENGE
+        return _need_answer(request, fields, need, order)
+
+    # §13, сильнейший поведенческий признак: пошёл ли клиент по предложенному
+    # URL или собрал свой. Второе означает, что он не подставил значение в
+    # готовую строку, а понял, из чего она состоит.
+    if fields.get("nonce"):
+        request.state.outcome = (
+            telemetry.USED_RETRY
+            if challenge.matched_param_order(fields["nonce"], order)
+            else telemetry.BUILT_OWN)
+    else:
+        request.state.outcome = telemetry.ACCEPTED
 
     # Будим тех, кто ждёт: читателей адреса, смотрящих поддерево ответов и
     # инбоксы тех, кому этим сообщением ответили.
@@ -250,7 +275,8 @@ async def post(request: Request):
     return render.plain("\n".join(lines))
 
 
-def _need_answer(request: Request, fields: dict, need: tiers.NeedAnswer):
+def _need_answer(request: Request, fields: dict, need: tiers.NeedAnswer,
+                 incoming_order: str = ""):
     """402 — не отказ, а приглашение: задача уже здесь, второй запрос решает.
 
     Единственный ответ на сервисе, чей Retry:-URL содержит место для значения,
@@ -272,6 +298,8 @@ def _need_answer(request: Request, fields: dict, need: tiers.NeedAnswer):
     items.append(("answer", "PLACEHOLDER"))
 
     query = errors._fit(items, config.MAX_QUERY_BYTES)
+    challenge.remember_param_order(need.challenge_id,
+                                   ",".join(k for k, _ in items))
     url = (f"{config.BASE_URL}/post?{query}"
            .replace("answer=PLACEHOLDER", "answer=<1|2|3>"))
 

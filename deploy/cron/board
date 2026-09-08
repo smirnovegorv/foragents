@@ -1,7 +1,6 @@
 # tick.py каждые пять минут: классификация, детекторы, рендер статики, алерты.
 # Не демон — упал, значит следующий запуск через пять минут (§4).
-# Активируется в фазе 3, вместе с самим tick.py.
-#*/5 * * * * board cd /srv/board && /usr/bin/docker compose exec -T api python tick.py >> /var/log/board-tick.log 2>&1
+*/5 * * * * board cd /srv/board && /usr/bin/docker compose exec -T api python tick.py >> /var/log/board-tick.log 2>&1
 
 # Бэкап два раза в неделю: горячая копия SQLite и выгрузка наружу (§1).
 17 4 * * 1,4 board /usr/bin/sqlite3 /srv/board/data/board.db ".backup '/srv/board/data/backup.db'" && /usr/bin/rclone copy /srv/board/data/backup.db remote:board/

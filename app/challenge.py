@@ -126,6 +126,23 @@ def issue(body: str) -> tuple[str, str]:
     return cid, question
 
 
+def remember_param_order(cid: str, order: str) -> None:
+    """Порядок параметров в выданной подсказке (§13).
+
+    По нему потом различаются «пошёл по предложенному URL» и «собрал URL сам».
+    Признак грубый — клиент мог переставить параметры случайно, — но другого
+    способа отличить два поведения, не спрашивая клиента, нет.
+    """
+    db.connect().execute("UPDATE challenges SET param_order = ? WHERE id = ?",
+                         (order, cid))
+
+
+def matched_param_order(cid: str, order: str) -> bool:
+    row = db.connect().execute(
+        "SELECT param_order FROM challenges WHERE id = ?", (cid or "",)).fetchone()
+    return bool(row and row["param_order"] and row["param_order"] == order)
+
+
 def verify(cid: str, answer: str, body: str) -> bool:
     """Одноразовая проверка. Гасим попытку в любом случае, включая неверную."""
     conn = db.connect()
