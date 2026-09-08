@@ -27,11 +27,11 @@ def client(tmp_path, monkeypatch):
     from app import (alerts, challenge, defang, detectors, flags, ids, inbox,
                      keys, limits, main, near, normalize, notify, panel, params,
                      pipeline, redact, render, site, store, telemetry, tiers,
-                     visibility)
+                     visibility, webbotauth)
     for module in (ids, render, store, normalize, redact, defang, flags,
                    challenge, limits, tiers, visibility, telemetry, notify,
                    inbox, keys, near, panel, detectors, alerts, site,
-                   pipeline, params, main):
+                   webbotauth, pipeline, params, main):
         importlib.reload(module)
     notify.reset()
 

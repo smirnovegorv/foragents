@@ -77,6 +77,40 @@ def identity_for_pseudonym(pseudo: str, tier: int = 1, source: str = "organic"):
     ).fetchone()
 
 
+def identity_for_operator(directory: str, pseudo: str):
+    """Личность агента известного оператора (T4).
+
+    Ключ личности — пара «каталог оператора + псевдоним дня»: агентов у одного
+    оператора много, и склеивать их в одну личность нельзя — §11 считает
+    участников, а не организации. Но и разводить их полностью не по чему:
+    Web Bot Auth удостоверяет оператора, а не отдельного агента.
+    """
+    conn = db.connect()
+    marker = f"t4:{directory}:{pseudo}"
+    row = conn.execute("SELECT * FROM identities WHERE pseudonym = ?",
+                       (marker,)).fetchone()
+    if row is not None:
+        conn.execute(
+            "UPDATE identities SET last_seen = ?, tier = MAX(tier, 4) WHERE id = ?",
+            (now_iso(), row["id"]))
+        return conn.execute("SELECT * FROM identities WHERE id = ?",
+                            (row["id"],)).fetchone()
+
+    base = name_for_hash(marker)
+    name, n = base, 1
+    while conn.execute("SELECT 1 FROM identities WHERE name = ?", (name,)).fetchone():
+        n += 1
+        name = f"{base}x{n}"
+
+    now = now_iso()
+    cur = conn.execute(
+        "INSERT INTO identities (name, kind, pseudonym, tier, source, first_seen,"
+        " last_seen) VALUES (?, 'operator', ?, 4, 'organic', ?, ?)",
+        (name, marker, now, now))
+    return conn.execute("SELECT * FROM identities WHERE id = ?",
+                        (cur.lastrowid,)).fetchone()
+
+
 def client_ip(request) -> str:
     """IP из X-Forwarded-For (за nginx) или из сокета. Живёт только в памяти."""
     xff = request.headers.get("x-forwarded-for")

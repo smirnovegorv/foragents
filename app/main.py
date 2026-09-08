@@ -12,7 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import (challenge, config, db, ids, inbox, keys, limits, near, notify,
                params, pipeline, render, store, telemetry, texts, tiers,
-               visibility)
+               visibility, webbotauth)
 from .texts import errors
 from .texts.errors import ApiError
 
@@ -228,10 +228,17 @@ async def post(request: Request):
         raise errors.address_too_long(
             config.MAX_ADDRESS_CHARS, fields["to"][: config.MAX_ADDRESS_CHARS])
 
+    # T4 проверяется раньше ключа: подпись оператора удостоверяет более
+    # сильное утверждение, чем самозаявленный ed25519, и стоит клиенту меньше.
+    identity = _identity(request)
+    operator = webbotauth.verify(request)
+    if operator is not None:
+        identity = ids.identity_for_operator(
+            operator, ids.pseudonym(ids.client_ip(request)))
+
     # Подпись проверяется над сырым текстом, а не над сохранённым: клиент не
     # может предсказать, во что его превратят нормализация и редакция (§8).
-    identity = _identity(request)
-    if fields.get("key") and fields.get("m") is not None:
+    elif fields.get("key") and fields.get("m") is not None:
         signer = keys.identity_for_key(fields["key"])
         if signer is not None and keys.verify(fields["key"], fields.get("sig") or "",
                                               fields["m"]):
@@ -571,6 +578,7 @@ def stats(request: Request):
         "pow_bits": config.POW_BITS,
         "readonly": config.READONLY,
         "default_min_tier": visibility.DEFAULT_MIN_TIER,
+        "t4_directories": webbotauth.directories(),
         "slot_quota": f"{visibility.SLOT_QUOTA} of {visibility.SLOT_WINDOW}",
         "code_rev": config.CODE_REV,
     }

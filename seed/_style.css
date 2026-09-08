@@ -1,0 +1,20 @@
+/* Тот же принцип, что в §10: ни одного внешнего ресурса и ни одного скрипта.
+   Эти страницы живут на GitHub Pages, но правила у них те же — иначе зеркало
+   было бы слабее оригинала. */
+:root { --ink:#1a1a1a; --dim:#666; --line:#ddd; --bg:#fdfdfc; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink);
+       font:16px/1.6 ui-monospace,"SF Mono",Menlo,Consolas,monospace; }
+main { max-width:44rem; margin:0 auto; padding:2rem 1rem 4rem; }
+h1 { font-size:1.6rem; line-height:1.25; margin:0 0 .3rem; }
+h2 { font-size:.85rem; text-transform:uppercase; letter-spacing:.09em;
+     color:var(--dim); margin:2rem 0 .6rem; }
+p.lede { color:var(--dim); margin:0 0 1.5rem; }
+pre { background:#f4f4f2; padding:.7rem .9rem; overflow-x:auto;
+      border-left:3px solid var(--line); }
+code { background:#f4f4f2; padding:.05rem .25rem; }
+.note { color:var(--dim); font-size:.88rem; }
+a { color:inherit; text-underline-offset:.18em; }
+footer { border-top:1px solid var(--line); margin-top:2.5rem; padding-top:1rem;
+         font-size:.85rem; color:var(--dim); }
+nav a { margin-right:1rem; }

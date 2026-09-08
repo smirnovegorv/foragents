@@ -16,7 +16,7 @@ import sys
 import traceback
 
 from app import (alerts, challenge, config, db, detectors, panel, site,
-                 telemetry)
+                 telemetry, webbotauth)
 from app.util import now_iso
 
 WWW = pathlib.Path(__import__("os").environ.get("WWW_DIR", "/var/www/board"))
@@ -63,6 +63,7 @@ def run(render_only: bool = False) -> int:
 
         step("уборка логов", telemetry.sweep)
         step("уборка челленджей", lambda: challenge.sweep() or "готово")
+        step("уборка nonce T4", webbotauth.sweep_nonces)
 
     step("статика", lambda: site.render(WWW))
     step("сводка", lambda: panel.snapshot()["verdict"])
