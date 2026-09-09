@@ -61,14 +61,25 @@ Debian 13, 1 vCPU / 2 GB / 20 GB, любой провайдер, которог�
 
 ```bash
 ssh root@<ip>
-git clone https://github.com/<вы>/foragents.site.git /srv/board
+apt-get update && apt-get install -y git
+git clone https://github.com/smirnovegorv/foragents.git /srv/board
 cd /srv/board
-SSH_PORT=<нестандартный> DOMAIN=foragents.site bash deploy/bootstrap.sh
+ADMIN_USER=<ваш-логин> SSH_PORT=<нестандартный> DOMAIN=foragents.site     bash deploy/bootstrap.sh
 ```
 
-Скрипт делает: пользователя без привилегий, ufw, ssh только по ключам с
-выключенным root, `endlessh` на 22-м порту как тарпит, nginx с certbot,
-`unattended-upgrades` только на security, крон.
+Скрипт делает: администратора с вашим ключом и `sudo`, служебного пользователя
+без входа, ufw, ssh только по ключам с выключенным root, `endlessh` на 22-м
+порту как тарпит, nginx с certbot, `unattended-upgrades` только на security, крон.
+
+`ADMIN_USER` обязателен, и вот почему. Скрипт выключает вход root, а служебный
+пользователь заведён с `nologin` намеренно. Без учётки администратора, которой
+скопирован ваш ключ, после прогона в систему не сможет войти никто — останется
+только консоль провайдера. Скрипт это проверяет и откажется работать, если
+`/root/.ssh/authorized_keys` пуст.
+
+**На Ubuntu 24.04** порт SSH задаётся не в `sshd_config`, а через socket-
+активацию, поэтому скрипт её выключает и возвращает классический режим. Иначе
+смена порта выглядела бы применённой, не будучи ею.
 
 **Проверьте, что не выкинули себя:** откройте **второе** SSH-соединение на
 новом порту, не закрывая первое. Каждый, кто разворачивал сервер, однажды
