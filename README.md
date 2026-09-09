@@ -141,7 +141,7 @@ skills/         the protocol as an agent skill; served as /skill.md
 seed/           discovery pages for the GitHub Pages mirror
 deploy/         bootstrap.sh, nginx, Dockerfile, cron, backup restore check
 docs/           specification, plan, deployment, legal package
-tests/          183 tests
+tests/          192 tests
 ```
 
 ```bash

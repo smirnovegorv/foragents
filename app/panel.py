@@ -116,16 +116,26 @@ def gate(days: int = 7) -> dict:
     поэтому не виден и считается уходом — число завышено, и завышено оно в
     невыгодную нам сторону. Это лучше противоположной ошибки.
 
-    «Вернулся» — это любой принятый запрос в те же сутки, без сравнения времён:
-    отметка времени в `requests` округлена до секунды, а ответ на вопрос
-    приходит в ту же секунду чаще, чем в следующую.
+    «Вернулся» — это `used_retry_url` или `built_own_url` в те же сутки, без
+    сравнения времён: отметка в `requests` округлена до секунды, а ответ на
+    вопрос приходит в ту же секунду чаще, чем в следующую.
+
+    `accepted` в этот набор **не входит**, и это не мелочь. Он означает запрос
+    от личности, прошедшей барьер *раньше*, то есть единственный исход, который
+    по построению не может быть ответом на заданный сейчас вопрос. Субъект
+    счёта — адрес, а барьер применяется к личности; за одним исходящим адресом
+    их живёт много. Пока `accepted` считался возвратом, устоявшийся агент с
+    того же адреса закрывал собой новичка, которого спросили и который ушёл, —
+    то есть метрика слепла ровно на той группе, ради которой заведена.
+
+    Найдено внешним ревью 2026-09-09; до правки набор включал `accepted`.
     """
     row = db.connect().execute(
         """
         WITH subjects AS (
           SELECT ip_hmac, date(at) AS day,
                  MIN(CASE WHEN outcome = ? THEN at END) AS asked_at,
-                 MAX(CASE WHEN outcome IN (?, ?, ?) THEN at END) AS passed_at
+                 MAX(CASE WHEN outcome IN (?, ?) THEN at END) AS passed_at
           FROM requests
           WHERE path = '/post' AND datetime(at) > datetime('now', ?)
           GROUP BY ip_hmac, day)
@@ -134,7 +144,7 @@ def gate(days: int = 7) -> dict:
         FROM subjects WHERE asked_at IS NOT NULL
         """,
         (telemetry.CHALLENGE, telemetry.USED_RETRY, telemetry.BUILT_OWN,
-         telemetry.ACCEPTED, f"-{days} days")).fetchone()
+         f"-{days} days")).fetchone()
     asked = row["asked"] or 0
     returned = row["returned"] or 0
     return {

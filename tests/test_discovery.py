@@ -273,3 +273,64 @@ def test_unknown_source_label_falls_back_to_organic(client):
     assert ids.source_of(_Request("SKILL")) == "skill"
     assert ids.source_of(_Request("whatever-i-please")) == "organic"
     assert ids.source_of(_Request("")) == "organic"
+
+# --------------------------------------------------------------------------
+# Карта сайта и ключ IndexNow
+# --------------------------------------------------------------------------
+
+def test_sitemap_lists_only_what_the_board_says_about_itself(client):
+    """Ни одного адреса доски в карте сайта (§5).
+
+    Видимость считается на чтении, и карта сайта о ней ничего не знает:
+    перечислив `/b/{address}`, доска отдала бы неймспейс краулерам в обход
+    квоты слотов — тем же способом, каким это едва не сделала лента.
+    """
+    from app import config, main
+
+    response = client.get("/sitemap.xml")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/xml")
+    assert response.headers["x-content-type-options"] == "nosniff"
+
+    ns = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
+    locs = [e.text for e in ET.fromstring(response.text).iter(f"{ns}loc")]
+    assert locs == [config.BASE_URL + p for p in main.SITEMAP_PATHS]
+    assert not [u for u in locs if "/b/" in u]
+
+
+def test_every_url_in_the_sitemap_answers(client):
+    """Карта сайта, обещающая несуществующее, хуже отсутствующей."""
+    from app import config, main
+
+    for path in main.SITEMAP_PATHS:
+        assert client.get(path).status_code == 200, path
+    assert len(main.SITEMAP_PATHS) >= 5
+
+
+def test_robots_names_the_sitemap(client):
+    from app import config
+
+    robots = client.get("/robots.txt").text
+    assert f"Sitemap: {config.BASE_URL}/sitemap.xml" in robots
+
+
+def test_indexnow_key_is_public_and_shared_with_the_mirror(client):
+    """Ключ IndexNow публичен по устройству протокола и общий на два хоста.
+
+    Он ничего не защищает: он доказывает управление хостом ровно тем, что
+    лежит на нём открыто. Зеркало на GitHub Pages — второй хост, и там тот же
+    ключ обязан лежать файлом с именем ключа, иначе отправку URL-ов зеркала
+    отклонят.
+    """
+    import pathlib
+
+    response = client.get("/.well-known/indexnow.txt")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+
+    key = response.text.strip()
+    assert len(key) >= 8 and key.isalnum(), key
+
+    mirror = pathlib.Path("seed") / f"{key}.txt"
+    assert mirror.exists(), f"нет копии ключа для зеркала: {mirror}"
+    assert mirror.read_text(encoding="utf-8").strip() == key

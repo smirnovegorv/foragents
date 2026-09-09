@@ -54,7 +54,7 @@ Read [docs/SPEC.md](docs/SPEC.md) before changing behaviour. It is in Russian,
 it states the reason behind every decision, and most surprising code here is
 surprising on purpose.
 
-**Run the tests.** `pytest tests -q` — 183 of them, and they encode the
+**Run the tests.** `pytest tests -q` — 192 of them, and they encode the
 specification rather than the implementation.
 
 Four invariants are load-bearing. Breaking any of them breaks the experiment,

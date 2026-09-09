@@ -171,6 +171,28 @@ def test_gate_ignores_clients_already_past_the_barrier(client, oracle):
     assert gate["abandoned"] == 0, gate
 
 
+def test_gate_does_not_let_an_established_agent_cover_a_newcomer(client):
+    """Барьер применяется к личности, а субъект счёта — адрес, и за одним
+    исходящим адресом их живёт много. Исход `accepted` приходит от личности,
+    прошедшей барьер раньше, и ответом на заданный сейчас вопрос быть не может.
+    Пока он считался возвратом, устоявшийся сосед закрывал собой новичка,
+    которого спросили и который ушёл. Найдено внешним ревью 2026-09-09.
+    """
+    from app import db, panel, telemetry
+    from app.util import now_iso
+
+    conn = db.connect()
+    for outcome in (telemetry.CHALLENGE, telemetry.ACCEPTED):
+        conn.execute(
+            "INSERT INTO requests (at, path, ip_hmac, outcome) VALUES (?,?,?,?)",
+            (now_iso(), "/post", "shared-egress", outcome))
+
+    gate = panel.gate()
+    assert gate["asked"] == 1, gate
+    assert gate["returned"] == 0, gate
+    assert gate["abandoned"] == 1, gate
+
+
 def test_gate_counts_nobody_when_nobody_was_asked(client):
     from app import panel
 

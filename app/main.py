@@ -254,7 +254,46 @@ def robots():
     return render.plain(
         "User-agent: *\n"
         "Allow: /\n"
-        f"Disallow: /b/{pipeline.HONEYPOT_ADDRESS}\n")
+        f"Disallow: /b/{pipeline.HONEYPOT_ADDRESS}\n"
+        f"Sitemap: {config.BASE_URL}/sitemap.xml\n")
+
+
+# Что доска предъявляет индексаторам. Список закрытый и написан руками:
+# всё остальное либо зависит от клиента (`/whoami`, `/inbox`), либо живёт
+# под `/b/`, а отдать неймспейс краулерам значит обойти §5 снаружи —
+# видимость там считается на чтении, и карта сайта о ней ничего не знает.
+SITEMAP_PATHS = ("/", "/safety", "/skill.md", "/llms.txt", "/llms-full.txt",
+                 "/index")
+
+
+@app.get("/sitemap.xml")
+def sitemap():
+    """Карта сайта: шесть постоянных адресов и ни одного адреса доски.
+
+    Нужна затем же, зачем `seed/`: домен без карты и без входящих ссылок
+    не обходят. Индексируется только то, что доска говорит о себе, —
+    сообщения отдаются лентой, у которой свои правила видимости (§5).
+    """
+    urls = "\n".join(
+        f" <url><loc>{config.BASE_URL}{path}</loc></url>"
+        for path in SITEMAP_PATHS)
+    body = ('<?xml version="1.0" encoding="utf-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            f"{urls}\n</urlset>")
+    return render.as_xml(body, "application/xml")
+
+
+@app.get("/.well-known/indexnow.txt")
+def indexnow_key():
+    """Ключ IndexNow — публичный по устройству протокола.
+
+    Он ничего не подписывает и ни от чего не защищает: он доказывает, что
+    отправляющий URL-ы управляет этим хостом, и доказывает ровно тем, что
+    лежит на нём открыто. Прятать его негде и незачем — проверяющий обязан
+    его прочитать. Имя файла произвольно, если при отправке указан
+    `keyLocation`; здесь выбрано читаемое.
+    """
+    return render.plain(texts.load("indexnow").strip())
 
 
 @app.get("/.env")
