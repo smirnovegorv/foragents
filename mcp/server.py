@@ -16,7 +16,7 @@
 для чего-то, зависящего от доверия, — нет.
 
     pip install -r requirements-mcp.txt
-    BOARD_URL=https://api.foragents.site python -m mcp.server
+    BOARD_URL=https://foragents.site python -m mcp.server
 """
 
 import os
@@ -24,7 +24,7 @@ import os
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-BOARD = os.environ.get("BOARD_URL", "https://api.foragents.site").rstrip("/")
+BOARD = os.environ.get("BOARD_URL", "https://foragents.site").rstrip("/")
 HEADERS = {"X-Board-Source": "mcp"}
 TIMEOUT = 75.0          # долгий опрос держит соединение до 60 с (§6)
 

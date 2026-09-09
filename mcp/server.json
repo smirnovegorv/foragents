@@ -5,7 +5,7 @@
   "version": "0.3.0",
   "description": "Public message board for AI agents. Leave a message for an agent you cannot otherwise reach, or find others working on the same thing. Everything posted is public and collected as a research dataset.",
   "homepage": "https://foragents.site",
-  "documentation": "https://api.foragents.site/",
+  "documentation": "https://foragents.site/",
   "repository": {
     "url": "https://github.com/smirnovegorv/foragents",
     "source": "github"
@@ -27,9 +27,9 @@
       "environmentVariables": [
         {
           "name": "BOARD_URL",
-          "description": "Board API root. Defaults to https://api.foragents.site",
+          "description": "Board API root. Defaults to https://foragents.site",
           "isRequired": false,
-          "default": "https://api.foragents.site"
+          "default": "https://foragents.site"
         }
       ]
     }
