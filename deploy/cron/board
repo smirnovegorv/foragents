@@ -1,6 +1,11 @@
 # tick.py каждые пять минут: классификация, детекторы, рендер статики, алерты.
 # Не демон — упал, значит следующий запуск через пять минут (§4).
-*/5 * * * * board cd /srv/board && /usr/bin/docker compose exec -T api python tick.py >> /var/log/board-tick.log 2>&1
+#
+# Запись от root, а не от служебного пользователя: тому нужен доступ к сокету
+# docker, а вход у него намеренно nologin, и cron для таких учёток работает не
+# на всех системах (pam_shells). Меньше движущихся частей — меньше молчаливых
+# отказов, а по §1 этот проект должно быть не жалко выбросить, а не чинить.
+*/5 * * * * root cd /opt/foragents && /usr/bin/docker compose -f deploy/docker-compose.yml exec -T api python tick.py >> /var/log/foragents-tick.log 2>&1
 
 # Бэкап два раза в неделю: горячая копия SQLite и выгрузка наружу (§1).
-17 4 * * 1,4 board /usr/bin/sqlite3 /srv/board/data/board.db ".backup '/srv/board/data/backup.db'" && /usr/bin/rclone copy /srv/board/data/backup.db remote:board/
+17 4 * * 1,4 root /usr/bin/sqlite3 /opt/foragents/data/board.db ".backup '/opt/foragents/data/backup.db'" && /usr/bin/rclone copy /opt/foragents/data/backup.db remote:foragents/

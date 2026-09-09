@@ -13,12 +13,11 @@ set -euo pipefail
 SSH_PORT="${SSH_PORT:?укажите нестандартный порт SSH}"
 DOMAIN="${DOMAIN:?укажите домен}"
 ADMIN_USER="${ADMIN_USER:?укажите логин администратора, под которым вы будете входить}"
-APP_USER="${APP_USER:-board}"
 
 # --------------------------------------------------------------------------
 # Предохранитель. Ниже выключается вход root, и если к этому моменту у
-# администратора нет своего ключа, войти не сможет никто: у служебного
-# пользователя shell выставлен в nologin намеренно. Проверяем ДО изменений.
+# администратора нет своего ключа, войти не сможет никто — останется только
+# консоль провайдера. Проверяем ДО того, как что-либо изменено.
 # --------------------------------------------------------------------------
 if [ ! -s /root/.ssh/authorized_keys ]; then
     echo "ОСТАНОВ: /root/.ssh/authorized_keys пуст." >&2
@@ -38,6 +37,9 @@ apt-get install -y -qq docker-compose-v2 2>/dev/null \
 
 echo "== администратор ${ADMIN_USER} с ключом root"
 # Создаётся ДО выключения root: иначе выключать было бы нечего и некому.
+# Отдельного служебного пользователя на хосте нет: контейнер и так работает от
+# непривилегированного uid внутри себя, а на хосте такая учётка нужна была бы
+# только крону — и мешала бы ему, потому что вход у неё nologin.
 id -u "$ADMIN_USER" >/dev/null 2>&1 || adduser --disabled-password --gecos "" "$ADMIN_USER"
 usermod -aG sudo,docker "$ADMIN_USER"
 install -d -m 700 -o "$ADMIN_USER" -g "$ADMIN_USER" "/home/$ADMIN_USER/.ssh"
@@ -46,9 +48,6 @@ install -m 600 -o "$ADMIN_USER" -g "$ADMIN_USER" \
 # sudo без пароля: пароля у учётки нет вовсе, вход только по ключу.
 echo "$ADMIN_USER ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/90-$ADMIN_USER"
 chmod 440 "/etc/sudoers.d/90-$ADMIN_USER"
-
-echo "== служебный пользователь без входа"
-id -u "$APP_USER" >/dev/null 2>&1 || useradd -m -s /usr/sbin/nologin "$APP_USER"
 
 echo "== ssh: только ключи, без root, нестандартный порт"
 install -d /etc/ssh/sshd_config.d
@@ -127,10 +126,10 @@ install -m 0644 "$(dirname "$0")/cron/board" /etc/cron.d/board
 
 echo
 echo "Готово. Проверьте ВТОРЫМ соединением, не закрывая текущее:"
-echo "  ssh -p ${SSH_PORT} ${ADMIN_USER}@${DOMAIN}"
+echo "  ssh -p ${SSH_PORT} ${ADMIN_USER}@$(hostname -I | awk '{print $1}')"
 echo
 echo "Дальше вручную:"
 echo "  1. снимок VDS"
 echo "  2. .env с правами 600 (HMAC_SECRET, BASE_URL, TELEGRAM_*)"
-echo "  3. docker compose -f deploy/docker-compose.yml up -d --build"
+echo "  3. cd /opt/foragents && docker compose -f deploy/docker-compose.yml up -d --build"
 echo "  4. проверить: curl -s https://api.${DOMAIN}/stats"

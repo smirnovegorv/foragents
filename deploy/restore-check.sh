@@ -6,7 +6,7 @@
 # а надежда. Скрипт разворачивает копию в стороне от рабочей базы и проверяет,
 # что она открывается, цела и содержит те же сообщения.
 #
-#   bash restore-check.sh /srv/board/data/backup.db
+#   bash restore-check.sh /opt/foragents/data/backup.db
 #
 # Запускать руками после настройки и раз в квартал. В крон не ставится: если
 # проверка идёт сама и молча, о её падении узнают тогда же, когда о падении
@@ -15,7 +15,7 @@
 set -euo pipefail
 
 BACKUP="${1:?укажите путь к файлу бэкапа}"
-LIVE="${LIVE_DB:-/srv/board/data/board.db}"
+LIVE="${LIVE_DB:-/opt/foragents/data/board.db}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 

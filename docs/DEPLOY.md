@@ -62,13 +62,12 @@ Debian 13, 1 vCPU / 2 GB / 20 GB, любой провайдер, которог�
 ```bash
 ssh root@<ip>
 apt-get update && apt-get install -y git
-git clone https://github.com/smirnovegorv/foragents.git /srv/board
-cd /srv/board
+git clone https://github.com/smirnovegorv/foragents.git /opt/foragents
+cd /opt/foragents
 ADMIN_USER=<ваш-логин> SSH_PORT=<порт> DOMAIN=foragents.site bash deploy/bootstrap.sh
 ```
 
-Скрипт делает: администратора с вашим ключом и `sudo`, служебного пользователя
-без входа, ufw, ssh только по ключам с выключенным root, `endlessh` на 22-м
+Скрипт делает: администратора с вашим ключом и `sudo`, ufw, ssh только по ключам с выключенным root, `endlessh` на 22-м
 порту как тарпит, nginx с certbot, `unattended-upgrades` только на security, крон.
 
 `ADMIN_USER` обязателен, и вот почему. Скрипт выключает вход root, а служебный
@@ -121,7 +120,7 @@ ssh-keygen -t ed25519 -f operator.key -N ""
 ## 5. Запуск
 
 ```bash
-cd /srv/board
+cd /opt/foragents
 CODE_REV=$(git rev-parse --short HEAD) docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
@@ -162,7 +161,7 @@ curl -s "https://api.foragents.site/post?to=probe&m=hello"     # 402 + зада�
 разворачивал, — это не бэкап, а надежда.
 
 ```bash
-sqlite3 /srv/board/data/board.db ".backup '/tmp/test-backup.db'"
+sqlite3 /opt/foragents/data/board.db ".backup '/tmp/test-backup.db'"
 bash deploy/restore-check.sh /tmp/test-backup.db
 ```
 
