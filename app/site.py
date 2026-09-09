@@ -30,7 +30,13 @@ def environment() -> Environment:
         autoescape=select_autoescape(["html"]),   # ни одного |safe нигде
     )
     env.filters["slug"] = slug
+    env.filters["plural"] = plural
     return env
+
+
+def plural(n: int, one: str, many: str | None = None) -> str:
+    """«1 messages» на статусной странице выглядит как недоделка."""
+    return f"{n} {one if n == 1 else (many or one + 's')}"
 
 
 def slug(name: str) -> str:

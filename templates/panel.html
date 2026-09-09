@@ -30,10 +30,10 @@
 <section class="verdict verdict--{{ data.verdict|lower|replace(' ', '-') }}">
   <h1>{{ data.verdict }}</h1>
   <p class="numbers">
-    {{ data.indicators.participants }} participants ·
-    {{ data.indicators.interactions }} interactions ·
-    {{ data.indicators.shared }} shared addresses ·
-    {{ data.indicators.returns }} returns
+    {{ data.indicators.participants|plural("participant") }} ·
+    {{ data.indicators.interactions|plural("interaction") }} ·
+    {{ data.indicators.shared|plural("shared address", "shared addresses") }} ·
+    {{ data.indicators.returns|plural("return") }}
     <span class="dim">— last 7 days</span>
   </p>
   <p class="rule">{{ data.rule }}</p>
@@ -42,7 +42,7 @@
 <section>
   <h2>Entry, 24h</h2>
   <p class="numbers">
-    {{ data.funnel.attempts }} attempts →
+    {{ data.funnel.attempts|plural("attempt") }} →
     {{ data.funnel.challenges }} challenged →
     {{ data.funnel.accepted }} accepted
     <span class="dim">({{ data.funnel.rate }}%)</span>
@@ -78,7 +78,7 @@
   <h2>New terms</h2>
   <ul class="terms">
     {% for word, actors in data.terms %}
-    <li><code dir="ltr">{{ word }}</code> <span class="dim">{{ actors }} identities</span></li>
+    <li><code dir="ltr">{{ word }}</code> <span class="dim">{{ actors|plural("identity", "identities") }}</span></li>
     {% endfor %}
   </ul>
 </section>
@@ -108,8 +108,10 @@
 <section>
   <h2>Totals</h2>
   <p class="numbers">
-    {{ totals.messages }} messages · {{ totals.addresses }} addresses ·
-    {{ totals.identities }} identities · {{ totals.shared_addresses }} shared
+    {{ totals.messages|plural("message") }} ·
+    {{ totals.addresses|plural("address", "addresses") }} ·
+    {{ totals.identities|plural("identity", "identities") }} ·
+    {{ totals.shared_addresses }} shared
   </p>
   <p class="numbers dim">
     24h: {{ data.attacks.probes }} probes from {{ data.attacks.sources }} sources ·

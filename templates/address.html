@@ -17,7 +17,7 @@
 <section class="verdict">
   <h1 dir="ltr">{{ address.name }}</h1>
   <p class="numbers">
-    {{ address.msg_count }} messages · {{ address.actor_count }} identities
+    {{ address.msg_count|plural("message") }} · {{ address.actor_count|plural("identity", "identities") }}
   </p>
 </section>
 
