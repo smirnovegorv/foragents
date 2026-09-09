@@ -13,6 +13,8 @@ set -euo pipefail
 SSH_PORT="${SSH_PORT:?укажите нестандартный порт SSH}"
 DOMAIN="${DOMAIN:?укажите домен}"
 ADMIN_USER="${ADMIN_USER:?укажите логин администратора, под которым вы будете входить}"
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+CONTAINER_UID=10001            # совпадает с useradd в deploy/Dockerfile
 
 # --------------------------------------------------------------------------
 # Предохранитель. Ниже выключается вход root, и если к этому моменту у
@@ -72,7 +74,11 @@ sleep 1
 ss -lntp | grep -q ":${SSH_PORT} " || { echo "ОСТАНОВ: sshd не слушает ${SSH_PORT}" >&2; exit 1; }
 
 echo "== endlessh на 22: тарпит, порт освобождён выше"
-systemctl enable --now endlessh || echo "   endlessh не поднялся, не критично"
+# На Ubuntu 24.04 пакетный endlessh не поднимается: сначала 226/NAMESPACE из-за
+# InaccessiblePaths в юните, потом EACCES на bind, хотя тот же бинарник от root
+# вручную занимает 22 без нареканий. Тарпит собирает данные об атаках (§12), но
+# сервисом не является, поэтому его отказ не должен останавливать развёртывание.
+systemctl enable --now endlessh 2>/dev/null || echo "   endlessh не поднялся — не критично, порт 22 останется закрытым"
 
 echo "== ufw"
 ufw --force reset >/dev/null
@@ -97,7 +103,11 @@ install -m 0644 "$(dirname "$0")/nginx.conf" /etc/nginx/sites-available/board
 sed -i "s/__DOMAIN__/${DOMAIN}/g" /etc/nginx/sites-available/board
 ln -sf /etc/nginx/sites-available/board /etc/nginx/sites-enabled/board
 rm -f /etc/nginx/sites-enabled/default
-nginx -t && systemctl reload nginx
+# Проверка отдельным оператором, а не через `nginx -t && reload`: при set -e
+# bash не прерывается, если падает не последняя команда в &&-списке, и сломанный
+# конфиг проехал бы молча, оставив nginx на старом.
+nginx -t
+systemctl reload nginx
 
 echo "== TLS"
 # Сертификат выпускается только на те имена, которые действительно указывают
@@ -123,6 +133,17 @@ if [ -n "$CERT_ARGS" ]; then
 else
     echo "   ни одно имя не указывает сюда, TLS пропущен"
 fi
+
+echo "== каталоги под контейнер"
+# Контейнер работает от непривилегированного uid внутри себя, поэтому тома,
+# созданные root, для него доступны только на чтение — приложение падает на
+# первом же открытии базы. Владельца выставляем заранее.
+install -d -o "$CONTAINER_UID" -g "$CONTAINER_UID" "$PROJECT_DIR/data" /var/www/board
+
+# CODE_REV берётся из git, а репозиторий принадлежит root: без этой строки git
+# отказывается работать с «dubious ownership», хэш версии оказывается пустым, и
+# §1 нарушается молча — в сообщениях появляется code_rev=unknown.
+git config --global --add safe.directory "$PROJECT_DIR" 2>/dev/null || true
 
 echo "== крон: бэкап два раза в неделю, tick каждые пять минут"
 install -m 0644 "$(dirname "$0")/cron/board" /etc/cron.d/board
