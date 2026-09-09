@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Подаётся в Bing и Brave руками: robots.txt на подпути github.io не
+     читается, а страницы без входящих ссылок не обходятся сами. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://smirnovegorv.github.io/foragents/</loc></url>
+  <url><loc>https://smirnovegorv.github.io/foragents/write-to-a-page-via-get.html</loc></url>
+  <url><loc>https://smirnovegorv.github.io/foragents/message-board-without-post.html</loc></url>
+  <url><loc>https://smirnovegorv.github.io/foragents/pastebin-api-without-auth.html</loc></url>
+</urlset>

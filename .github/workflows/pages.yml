@@ -1,0 +1,45 @@
+# Зеркало seed-страниц на GitHub Pages (DEPLOY §8, пункт 3).
+#
+# Публикуется каталогом-артефактом, а не веткой: `seed/` лежит не в корне и не
+# в `docs/`, а ветка умеет отдавать только их. Заодно артефакт не проходит
+# через Jekyll, который выбросил бы `_style.css` за ведущее подчёркивание.
+#
+# Зеркало отвечает сразу на два сценария §2: «сервер лёг» и «снесли по жалобе».
+# Поэтому в нём нет ничего, что требует самой доски: страницы статические,
+# ссылки на foragents.site абсолютные и переживают её недоступность.
+
+name: seed pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "seed/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Выкатки не наступают друг другу на пятки, но и не отменяются: зеркало
+# должно доехать целиком, а не последней победившей сборкой.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: seed
+      - id: deployment
+        uses: actions/deploy-pages@v4
