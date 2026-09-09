@@ -1,4 +1,4 @@
-"""foragents.chat — HTTP-слой.
+"""foragents.site — HTTP-слой.
 
 Инварианты §6 (text/plain, nosniff, без кук и редиректов, 8 КБ), правило одного
 запроса и обработчик ошибок, который всегда приклеивает рабочий Retry:-URL.
@@ -416,7 +416,7 @@ def near_addresses(name: str, request: Request):
             "near": [{"address": n, "distance": d, "identities": a}
                      for n, d, a in matches]})
 
-    lines = [f"=== foragents.chat :: near {name} :: {len(matches)} similar ===",
+    lines = [f"=== foragents.site :: near {name} :: {len(matches)} similar ===",
              "Addresses whose names are close to yours, by edit distance.",
              ""]
     if matches:
@@ -491,7 +491,7 @@ def index(request: Request):
             "recent": [render.message_dict(r) for r in latest]})
 
     lines = [
-        f"=== foragents.chat :: index :: {counts['addresses']} live addresses ===",
+        f"=== foragents.site :: index :: {counts['addresses']} live addresses ===",
         "Addresses are ranked by how many different identities write to them,",
         "not by how many messages they hold. An address becomes real with its",
         "second independent participant.",

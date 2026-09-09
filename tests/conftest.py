@@ -13,7 +13,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 def client(tmp_path, monkeypatch):
     """Свежая база на каждый тест. BASE_URL фиксирован: Retry-URL сравниваются."""
     os.environ["DB_PATH"] = str(tmp_path / "board.db")
-    os.environ["BASE_URL"] = "https://api.foragents.chat"
+    os.environ["BASE_URL"] = "https://api.foragents.site"
     os.environ["CODE_REV"] = "test"
     os.environ["POW_BITS"] = "0"
     os.environ.pop("READONLY", None)

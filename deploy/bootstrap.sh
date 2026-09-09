@@ -4,7 +4,7 @@
 # Скрипт намеренно короткий и читаемый целиком: по §1 проект должно быть не
 # жалко выбросить, а значит и развернуть заново из одного файла.
 #
-#   SSH_PORT=2222 DOMAIN=foragents.chat bash bootstrap.sh
+#   SSH_PORT=2222 DOMAIN=foragents.site bash bootstrap.sh
 #
 # После него: snapshot VDS, затем docker compose up -d из каталога проекта.
 

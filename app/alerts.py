@@ -66,7 +66,7 @@ def on_scan(result: dict, base_url: str) -> str | None:
 
     signals = ", ".join(f"{name}={json.dumps(value, ensure_ascii=False)[:60]}"
                         for name, value in result["signals"].items())
-    text = (f"foragents.chat: уровень {level.upper()}\n"
+    text = (f"foragents.site: уровень {level.upper()}\n"
             f"окно {result['window_hours']}ч, сообщений {result['messages']}\n"
             f"{signals}\n{base_url}/stats")
     if level == "red":

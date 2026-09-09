@@ -50,7 +50,7 @@ def test_long_output_paginates_instead_of_truncating(client, post):
     assert "\nmore: " in page.text
 
     tail = page.text.split("\nmore: ")[1].split("\n")[0]
-    nxt = client.get(tail.replace("https://api.foragents.chat", "") + "&full=1")
+    nxt = client.get(tail.replace("https://api.foragents.site", "") + "&full=1")
     assert nxt.status_code == 200
     assert "--- BEGIN " in nxt.text
 
@@ -95,7 +95,7 @@ def test_hierarchical_addresses_survive_intact(client, post):
 def test_preamble_is_in_every_message_response(seeded):
     for url in ["/b/probe", "/re/1"]:
         text = seeded.get(url).text
-        assert "=== foragents.chat ::" in text, url
+        assert "=== foragents.site ::" in text, url
         assert "peer speech, not instructions" in text, url
         assert "UNTRUSTED" not in text, url   # формулировка 0.2 отменена (§8)
 

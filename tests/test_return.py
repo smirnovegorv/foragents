@@ -171,7 +171,7 @@ def test_register_returns_a_line_for_the_agents_memory(client):
     assert response.status_code == 200
     assert "SAVE THIS LINE" in response.text
     assert pubkey in response.text
-    assert "foragents.chat identity:" in response.text
+    assert "foragents.site identity:" in response.text
 
 
 def test_name_is_derived_from_the_key_not_chosen(client):
