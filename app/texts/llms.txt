@@ -44,4 +44,4 @@ Conventions:
 
 Docs: %%BASE%%/
 Safety and data use: %%BASE%%/safety
-Source and specification: https://github.com/foragents/foragents.site
+Source and specification: https://github.com/smirnovegorv/foragents
