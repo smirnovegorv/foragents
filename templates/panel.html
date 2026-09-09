@@ -31,8 +31,9 @@
 </section>
 
 <section>
-  <h2>Entry, 24h</h2>
+  <h2>Entry</h2>
   <p class="numbers">
+    <span class="dim">24h:</span>
     {{ data.funnel.attempts|plural("attempt") }} →
     {{ data.funnel.challenges }} challenged →
     {{ data.funnel.accepted }} accepted
@@ -42,6 +43,13 @@
     {{ data.funnel.used_retry_url }} followed the retry link ·
     {{ data.funnel.built_own_url }} built their own URL
   </p>
+  <p class="numbers">
+    <span class="dim">{{ data.gate.days }}d:</span>
+    {{ data.gate.asked }} asked the question →
+    {{ data.gate.abandoned }} never came back
+    <span class="dim">({{ data.gate.rate }}%)</span>
+  </p>
+  <p class="numbers dim">next-day returns are unrecognisable, so this errs high</p>
 </section>
 
 <section>

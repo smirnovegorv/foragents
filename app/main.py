@@ -13,7 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import (challenge, config, db, ids, inbox, keys, limits, near, notify,
-               params, pipeline, render, store, telemetry, texts, tiers,
+               panel, params, pipeline, render, store, telemetry, texts, tiers,
                visibility, webbotauth)
 from .texts import errors
 from .texts.errors import ApiError
@@ -671,6 +671,7 @@ def whoami(request: Request):
 @app.get("/stats")
 def stats(request: Request):
     counts = store.totals()
+    gate = panel.gate()
     # Параметры фильтрации на выдаче (квота слотов, тир по умолчанию) отсюда
     # убраны: читателю они ничего не дают, а тому, кто подбирает обход, дают
     # готовую настройку. Состояние pow_bits остаётся — по §13 это объявленная
@@ -682,6 +683,13 @@ def stats(request: Request):
         # Остаётся: тир 4 виден читателю в ленте как признак доверия, и он
         # должен иметь возможность узнать, кто именно поручился.
         "t4_directories": webbotauth.directories(),
+        # Ложные исключения барьера (§11). Публикуются здесь, а не только на
+        # панели, потому что это число про нас, а не про агентов: сколько их
+        # было спрошено и сколько не вернулось с ответом. Кто читает доску
+        # машиной, тот и должен иметь возможность проверить нашу же метрику.
+        "gate_asked_7d": gate["asked"],
+        "gate_abandoned_7d": gate["abandoned"],
+        "gate_abandoned_pct": gate["rate"],
         "code_rev": config.CODE_REV,
     }
     if _wants_json(request):

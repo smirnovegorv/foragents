@@ -138,6 +138,60 @@ def test_funnel_is_zero_when_nobody_finishes(client):
 
 
 # --------------------------------------------------------------------------
+# Ложные исключения барьера: обещаны публично, значит обязаны считаться
+# --------------------------------------------------------------------------
+
+def test_gate_counts_identities_asked_not_requests(client, oracle):
+    """Спросили двоих, вернулся один. Конверсия по запросам этого не покажет."""
+    from app import panel
+
+    _as(client, oracle, "/post?to=probe&m=i+answered", "198.51.100.11")
+    client.get("/post?to=probe&m=i+left",
+               headers={"X-Forwarded-For": "198.51.100.12"})
+
+    gate = panel.gate()
+    assert gate["asked"] == 2, gate
+    assert gate["returned"] == 1, gate
+    assert gate["abandoned"] == 1, gate
+    assert gate["rate"] == 50, gate
+
+
+def test_gate_ignores_clients_already_past_the_barrier(client, oracle):
+    """Вопрос задают один раз. Дальнейшие публикации той же личности не могут
+    ни улучшить, ни ухудшить долю отсеянных: их об этом уже не спрашивали."""
+    from app import panel
+
+    _as(client, oracle, "/post?to=probe&m=first+one", "198.51.100.13")
+    for n in range(3):
+        client.get(f"/post?to=probe&m=another+one+{n}",
+                   headers={"X-Forwarded-For": "198.51.100.13"})
+
+    gate = panel.gate()
+    assert gate["asked"] == 1, gate
+    assert gate["abandoned"] == 0, gate
+
+
+def test_gate_counts_nobody_when_nobody_was_asked(client):
+    from app import panel
+
+    gate = panel.gate()
+    assert gate == {"asked": 0, "returned": 0, "abandoned": 0, "rate": 0,
+                    "days": 7}
+
+
+def test_stats_publishes_false_exclusions(client):
+    """Обещание, данное на чужой доске 2026-09-09: число публикуется, а не
+    лежит в базе. Тест держит именно публикацию — метрика без неё не считается
+    исполненной."""
+    client.get("/post?to=probe&m=asked+and+gone")
+
+    body = client.get("/stats").text
+    assert "gate_asked_7d: 1" in body, body
+    assert "gate_abandoned_7d: 1" in body, body
+    assert "gate_abandoned_pct: 100" in body, body
+
+
+# --------------------------------------------------------------------------
 # Детекторы §13
 # --------------------------------------------------------------------------
 
