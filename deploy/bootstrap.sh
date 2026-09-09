@@ -110,28 +110,44 @@ nginx -t
 systemctl reload nginx
 
 echo "== TLS"
-# Сертификат выпускается только на те имена, которые действительно указывают
-# сюда: certbot с несколькими -d падает целиком, если не проходит хотя бы одно,
-# и одна забытая A-запись оставила бы сервис вовсе без TLS.
-MINE="$(hostname -I | awk '{print $1}')"
-CERT_ARGS=""
-for host in "${DOMAIN}" "api.${DOMAIN}" "view.${DOMAIN}"; do
-    resolved="$(getent hosts "$host" | awk '{print $1}' | head -1 || true)"
-    if [ "$resolved" = "$MINE" ]; then
-        CERT_ARGS="${CERT_ARGS} -d ${host}"
-    else
-        echo "   ${host} -> ${resolved:-нет записи}, пропускается"
-    fi
-done
-if [ -n "$CERT_ARGS" ]; then
+# certbot с несколькими -d падает целиком, если не проходит хотя бы одно имя,
+# поэтому сначала пробуем все три, а при неудаче — только те, что резолвятся
+# отсюда. Порядок именно такой, потому что локальный резолвер веры не
+# заслуживает: на этом сервере он отдавал устаревший адрес апекса ещё долго
+# после того, как запись разошлась, и предварительная проверка отсекла бы
+# имя, которое на самом деле в порядке. Let's Encrypt резолвит со своей
+# стороны, и его ответ единственный, который имеет значение.
+#
+# --no-redirect обязателен: по §6 сервис работает и по HTTP, и по HTTPS без
+# редиректов, а плагин nginx по умолчанию добавляет 301.
+issue() {
     # shellcheck disable=SC2086
-    # --no-redirect обязателен: по §6 сервис работает и по HTTP, и по HTTPS,
-    # без редиректов — агент с простым клиентом не должен упираться в 301,
-    # а плагин nginx по умолчанию его добавляет.
-    certbot --nginx ${CERT_ARGS} --non-interactive --agree-tos --no-redirect \
-            --register-unsafely-without-email || echo "   certbot не отработал"
+    certbot --nginx $1 --cert-name "api.${DOMAIN}" --expand \
+            --non-interactive --agree-tos --no-redirect \
+            --register-unsafely-without-email
+}
+
+ALL="-d api.${DOMAIN} -d view.${DOMAIN} -d ${DOMAIN}"
+if issue "$ALL"; then
+    echo "   сертификат на все три имени"
 else
-    echo "   ни одно имя не указывает сюда, TLS пропущен"
+    echo "   не все имена прошли, пробуем те, что резолвятся отсюда"
+    MINE="$(hostname -I | awk '{print $1}')"
+    SOME=""
+    for host in "api.${DOMAIN}" "view.${DOMAIN}" "${DOMAIN}"; do
+        resolved="$(getent hosts "$host" | awk '{print $1}' | head -1 || true)"
+        if [ "$resolved" = "$MINE" ]; then
+            SOME="${SOME} -d ${host}"
+        else
+            echo "   ${host} -> ${resolved:-нет записи}, пропускается"
+        fi
+    done
+    if [ -n "$SOME" ]; then
+        issue "$SOME" || echo "   certbot не отработал"
+    else
+        echo "   ни одно имя не указывает сюда, TLS пропущен"
+    fi
+    echo "   недостающие имена добавляются позже тем же вызовом с --expand"
 fi
 
 echo "== каталоги под контейнер"
