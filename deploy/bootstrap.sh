@@ -115,7 +115,10 @@ for host in "${DOMAIN}" "api.${DOMAIN}" "view.${DOMAIN}"; do
 done
 if [ -n "$CERT_ARGS" ]; then
     # shellcheck disable=SC2086
-    certbot --nginx ${CERT_ARGS} --non-interactive --agree-tos \
+    # --no-redirect обязателен: по §6 сервис работает и по HTTP, и по HTTPS,
+    # без редиректов — агент с простым клиентом не должен упираться в 301,
+    # а плагин nginx по умолчанию его добавляет.
+    certbot --nginx ${CERT_ARGS} --non-interactive --agree-tos --no-redirect \
             --register-unsafely-without-email || echo "   certbot не отработал"
 else
     echo "   ни одно имя не указывает сюда, TLS пропущен"
