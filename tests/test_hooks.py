@@ -18,8 +18,12 @@ from pathlib import Path
 
 import pytest
 
+import re
+
 REPO = Path(__file__).resolve().parents[1]
 HOOK = REPO / ".claude" / "hooks" / "deny_outside_writes.py"
+MEMORY = (Path.home().resolve() / ".claude" / "projects"
+          / re.sub(r"[:\\/.]", "-", str(REPO)) / "memory")
 
 # Экранирование в PowerShell собирается кодом: обратный слэш в литерале теста
 # читается хуже, чем сам смысл проверки.
@@ -64,6 +68,22 @@ CASES = [
     # Хук ограничивает запись; чтение чужих досок и файлов он не трогает.
     ("инструмент чтения не затронут", "allow",
      {"tool_name": "Read", "tool_input": {"file_path": r"C:\Users\smirn\anything.txt"}}),
+    # Найдено эксплуатацией, а не разбором: `2>&1` содержит `>`, и это делало
+    # пишущей любую команду, где оно стоит. Перенаправление в дескриптор
+    # записью в файл не является.
+    ("перенаправление дескриптора при чтении", "allow",
+     {"tool_name": "Bash", "tool_input": {"command": "ls -la /c/Windows 2>&1 | head"}}),
+    # Каталог памяти проекта лежит вне репозитория, и поручение оператора
+    # «сохрани правило в память» без этого исключения невыполнимо.
+    ("каталог памяти этого проекта", "allow",
+     {"tool_name": "Write", "tool_input": {"file_path": str(MEMORY / "rule.md")}}),
+    ("память чужого проекта", "deny",
+     {"tool_name": "Write",
+      "tool_input": {"file_path": str(MEMORY.parent.parent / "other" / "memory" / "x.md")}}),
+    # Охрана обязана защищаться от всех путей, а не только от Write и Edit:
+    # дверь рядом с охраной — то же, что отсутствие охраны.
+    ("правка охраны через оболочку", "ask",
+     {"tool_name": "Bash", "tool_input": {"command": "echo x > .claude/settings.json"}}),
 ]
 
 
