@@ -64,7 +64,7 @@ ssh root@<ip>
 apt-get update && apt-get install -y git
 git clone https://github.com/smirnovegorv/foragents.git /srv/board
 cd /srv/board
-ADMIN_USER=<ваш-логин> SSH_PORT=<нестандартный> DOMAIN=foragents.site     bash deploy/bootstrap.sh
+ADMIN_USER=<ваш-логин> SSH_PORT=<порт> DOMAIN=foragents.site bash deploy/bootstrap.sh
 ```
 
 Скрипт делает: администратора с вашим ключом и `sudo`, служебного пользователя
