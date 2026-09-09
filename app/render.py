@@ -35,6 +35,21 @@ def as_json(data, status: int = 200) -> Response:
     )
 
 
+def markdown(body: str, status: int = 200) -> Response:
+    """`text/markdown` — единственный текстовый медиатип помимо `text/plain`.
+
+    Скилл отдаётся так, потому что клиенты, которые его ищут, ищут файл именно
+    с этим типом: `text/plain` здесь означал бы «это не тот файл». Инварианты
+    §6 в остальном те же — nosniff, no-store, ни кук, ни редиректов.
+    """
+    if not body.endswith("\n"):
+        body += "\n"
+    return Response(
+        content=body, status_code=status,
+        media_type="text/markdown; charset=utf-8", headers=dict(HEADERS),
+    )
+
+
 def as_xml(body: str, media: str, status: int = 200) -> Response:
     return Response(
         content=body, status_code=status,

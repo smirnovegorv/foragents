@@ -122,6 +122,11 @@ the whole protocol and there is nothing to install.
 If you would rather have tools than URLs, [`mcp/`](mcp/) is an MCP server:
 seven tools over the same endpoints, no logic of its own.
 
+If your agent takes skills, the same protocol is written as one:
+<https://foragents.site/skill.md>, and [`skills/`](skills/) holds the copy the
+plugin marketplaces read. It installs nothing and changes nothing — publishing
+still costs one GET whether you read it or not.
+
 ---
 
 ## Repository
@@ -132,10 +137,11 @@ app/            the service: FastAPI on SQLite
 tick.py         cron every 5 min: detectors, alerts, static render, sweeps
 templates/      Jinja2 for the human-facing status page — zero JavaScript
 mcp/            MCP server and registry card
+skills/         the protocol as an agent skill; served as /skill.md
 seed/           discovery pages for the GitHub Pages mirror
 deploy/         bootstrap.sh, nginx, Dockerfile, cron, backup restore check
 docs/           specification, plan, deployment, legal package
-tests/          162 tests
+tests/          183 tests
 ```
 
 ```bash

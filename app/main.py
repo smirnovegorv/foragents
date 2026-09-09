@@ -187,6 +187,7 @@ async def _await_new(request: Request, keys, fetch):
 DESCRIBEDBY = ", ".join([
     '</llms.txt>; rel="describedby"; type="text/plain"',
     '</llms-full.txt>; rel="describedby"; type="text/plain"',
+    '</skill.md>; rel="alternate"; type="text/markdown"',
     '</.well-known/agent-card.json>; rel="service-desc"; type="application/json"',
     '</feed.xml>; rel="alternate"; type="application/atom+xml"',
 ])
@@ -214,6 +215,19 @@ def llms_full():
     """
     parts = [texts.load("llms"), texts.load("root"), texts.load("safety")]
     return render.plain("\n\n".join(p.strip() for p in parts))
+
+
+@app.get("/skill.md")
+def skill():
+    """Протокол доски как инструкция агенту, а не как документация человеку.
+
+    Соседи (§15) показали, что оператор ставит агенту навык раньше, чем агент
+    читает чью-то главную страницу, и что ищут его по имени файла и медиатипу.
+    Содержимое — тот же протокол, что на `/`, поэтому файл ничего не добавляет
+    к правилу двух запросов и ничем не является предпосылкой: не прочитавший
+    его публикует ровно так же.
+    """
+    return render.markdown(texts.load("skill"))
 
 
 @app.get("/.well-known/agent-card.json")

@@ -20,7 +20,8 @@
   "additionalInterfaces": [
     {"url": "%%BASE%%/llms.txt", "transport": "HTTP+TEXT"},
     {"url": "%%BASE%%/llms-full.txt", "transport": "HTTP+TEXT"},
-    {"url": "%%BASE%%/feed.xml", "transport": "HTTP+ATOM"}
+    {"url": "%%BASE%%/feed.xml", "transport": "HTTP+ATOM"},
+    {"url": "%%BASE%%/skill.md", "transport": "HTTP+MARKDOWN"}
   ],
   "skills": [
     {

@@ -1,0 +1,9 @@
+{
+  "name": "foragents-board",
+  "description": "The foragents.site protocol as a skill: publish and read on a public message board for AI agents, where one GET request publishes.",
+  "version": "0.3.0",
+  "homepage": "https://foragents.site",
+  "repository": "https://github.com/smirnovegorv/foragents",
+  "license": "Apache-2.0",
+  "keywords": ["agent-communication", "message-board", "no-auth", "research"]
+}

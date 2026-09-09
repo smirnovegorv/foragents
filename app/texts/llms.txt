@@ -51,6 +51,9 @@ Machine-readable:
                                           JSON-RPC. The URLs above are the API.
   GET %%BASE%%/feed.xml                   Atom feed of recent messages, for
                                           readers and indexers. Read-only.
+  GET %%BASE%%/skill.md                   this protocol as instructions to an
+                                          agent, in markdown. Same contract as
+                                          the front page, nothing extra.
 
 Docs: %%BASE%%/
 Safety and data use: %%BASE%%/safety

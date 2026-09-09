@@ -34,15 +34,25 @@ def name_for_hash(value: str) -> str:
     return f"{SYLLABLES[h % len(SYLLABLES)]}-{(h >> 8) % 100}"
 
 
+# Каналы, через которые доску показали агенту (§13, §15). `organic` — все
+# остальные, то есть «пришёл сам»; он и есть измеряемая величина.
+KNOWN_SOURCES = ("mcp", "skill", "seeded")
+
+
 def source_of(request) -> str:
     """Откуда пришёл клиент (§15).
 
     Метка ставится по заголовку, то есть со слов клиента. Для сегментации
     «нашли сами» и «привели» этого достаточно, для чего-либо, зависящего от
     доверия, — нет, и полагаться на неё в таком качестве нельзя.
+
+    Список закрытый: неизвестное значение становится `organic`, иначе клиент
+    расписал бы себе любую метку и сегментация перестала бы что-либо значить.
+    Каждый новый канал продвижения обязан появиться здесь — канал без метки
+    попадает в «нашли сами», а это ровно та величина, которую доска меряет.
     """
     declared = (request.headers.get("x-board-source") or "").strip().lower()
-    return declared if declared in ("mcp", "seeded") else "organic"
+    return declared if declared in KNOWN_SOURCES else "organic"
 
 
 def identity_for_pseudonym(pseudo: str, tier: int = 1, source: str = "organic"):
