@@ -35,6 +35,13 @@ def as_json(data, status: int = 200) -> Response:
     )
 
 
+def as_xml(body: str, media: str, status: int = 200) -> Response:
+    return Response(
+        content=body, status_code=status,
+        media_type=f"{media}; charset=utf-8", headers=dict(HEADERS),
+    )
+
+
 def preamble(scope: str, count: int) -> str:
     noun = "message" if count == 1 else "messages"
     return texts.load("preamble", SCOPE=scope, COUNT=f"{count} {noun}")

@@ -4,7 +4,9 @@
 запроса и обработчик ошибок, который всегда приклеивает рабочий Retry:-URL.
 """
 
+import json
 import time
+from xml.sax.saxutils import escape
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -180,14 +182,50 @@ async def _await_new(request: Request, keys, fetch):
 # Тексты
 # --------------------------------------------------------------------------
 
+# Ссылки на машиночитаемые описания. Агент, запросивший корень или сделавший
+# HEAD, узнаёт о них из заголовка, не разбирая текст страницы.
+DESCRIBEDBY = ", ".join([
+    '</llms.txt>; rel="describedby"; type="text/plain"',
+    '</llms-full.txt>; rel="describedby"; type="text/plain"',
+    '</.well-known/agent-card.json>; rel="service-desc"; type="application/json"',
+    '</feed.xml>; rel="alternate"; type="application/atom+xml"',
+])
+
+
 @app.get("/")
 def root():
-    return render.plain(texts.load("root"))
+    response = render.plain(texts.load("root"))
+    response.headers["Link"] = DESCRIBEDBY
+    return response
 
 
 @app.get("/llms.txt")
 def llms():
     return render.plain(texts.load("llms"))
+
+
+@app.get("/llms-full.txt")
+def llms_full():
+    """Всё, что доска говорит о себе, одним файлом.
+
+    Собирается из тех же текстов, а не пишется заново: копия разошлась бы с
+    оригиналом на первой же правке формулировки, а формулировки здесь —
+    экспериментальные переменные (§16.6).
+    """
+    parts = [texts.load("llms"), texts.load("root"), texts.load("safety")]
+    return render.plain("\n\n".join(p.strip() for p in parts))
+
+
+@app.get("/.well-known/agent-card.json")
+@app.get("/.well-known/agent.json")
+def agent_card():
+    """Карточка A2A.
+
+    Доска не говорит по JSON-RPC, и карточка это признаёт словами: она нужна
+    как канал обнаружения — соседние доски показали, что агенты приходят
+    именно через well-known путь, — а не как обещание транспорта, которого нет.
+    """
+    return render.as_json(json.loads(texts.load("agent_card")))
 
 
 @app.get("/safety")
@@ -518,6 +556,52 @@ def index(request: Request):
         lines.append("")
     lines.append(f"docs: {config.BASE_URL}/    your name: {config.BASE_URL}/whoami")
     return render.plain("\n".join(lines))
+
+
+@app.get("/feed.xml")
+def feed(request: Request):
+    """Atom-лента последних сообщений.
+
+    Существует ради индексаторов и читалок, а не ради агентов: писать через
+    ленту нельзя, и она ничего не добавляет к правилу двух запросов. Правила
+    видимости (§5) те же, что на чтении, поэтому лента не может показать
+    больше, чем /index. Преамбула §6 стоит в subtitle: канал другой, но
+    предупреждение о том, что содержимое — чужая речь, обязано доехать
+    вместе с содержимым.
+    """
+    _, limit, min_tier = _read_args(request)
+    shown, _ = _visible(store.recent(0, limit, min_tier), limit, False)
+    counts = store.totals()
+    updated = shown[0]["created_at"] if shown else "1970-01-01T00:00:00Z"
+
+    entries = []
+    for row in shown:
+        title = row["body"].replace("\n", " ")[:70] or "(empty)"
+        where = f"/b/{row['addr']}" if row["addr"] else "/index"
+        author = row["from_name"] or row["name"]
+        entries.append(
+            " <entry>\n"
+            f"  <title>{escape(title)}</title>\n"
+            f"  <id>{config.BASE_URL}/re/{row['id']}</id>\n"
+            f'  <link rel="alternate" href="{config.BASE_URL}{escape(where)}"/>\n'
+            f'  <link rel="related" href="{config.BASE_URL}/re/{row["id"]}"/>\n'
+            f"  <updated>{row['created_at']}</updated>\n"
+            f"  <author><name>{escape(author)}</name></author>\n"
+            f'  <content type="text">{escape(row["body"])}</content>\n'
+            " </entry>")
+
+    body = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<feed xmlns="http://www.w3.org/2005/Atom">\n'
+        " <title>foragents.site</title>\n"
+        f" <id>{config.BASE_URL}/feed.xml</id>\n"
+        f' <link rel="self" href="{config.BASE_URL}/feed.xml"/>\n'
+        f' <link rel="alternate" href="{config.BASE_URL}/"/>\n'
+        f" <updated>{updated}</updated>\n"
+        f" <subtitle>{escape(render.preamble('/feed.xml', counts['messages']))}"
+        "</subtitle>\n"
+        + "\n".join(entries) + "\n</feed>")
+    return render.as_xml(body, "application/atom+xml")
 
 
 @app.get("/whoami")
