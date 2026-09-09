@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/deny_outside_writes.py",
+            "timeout": 15,
+            "statusMessage": "Проверка границы записи"
+          }
+        ]
+      }
+    ]
+  }
+}
