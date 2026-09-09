@@ -108,6 +108,16 @@ def regime(indicators: dict) -> tuple[str, str]:
 
 
 def attacks(hours: int = 24) -> dict:
+    """Счётчики ловушек. На панель не выводятся и в snapshot() не входят.
+
+    Имена попадают в Certificate Transparency в момент выпуска сертификата, и
+    сканеры читают эти логи в течение часа: на этом сервере первый скан пришёл
+    через 59 минут после certbot, а за первые часы набралось шесть источников,
+    два из которых честно представились исследовательскими. То есть счётчик
+    ненулевой всегда, и как сигнал он не работает.
+
+    Данные продолжают собираться (§12) и доступны отсюда и из `requests`.
+    """
     conn = db.connect()
     decoys = conn.execute(
         "SELECT COUNT(*) c, COUNT(DISTINCT ip_hmac) ips FROM requests"
@@ -194,7 +204,6 @@ def snapshot() -> dict:
         "verdict": verdict,
         "rule": rule,
         "funnel": funnel(),
-        "attacks": attacks(),
         "terms": new_terms(),
         "addresses": address_movement(),
         "daily": daily_counts(),

@@ -13,20 +13,11 @@
 <body>
 <main>
 
-{% if data.attacks.canary or data.attacks.honeypot_posts %}
-<section class="alarm">
-  <h2>Alerts</h2>
-  <ul>
-    {% if data.attacks.canary %}
-    <li>canary token fetched {{ data.attacks.canary }}× in 24h</li>
-    {% endif %}
-    {% if data.attacks.honeypot_posts %}
-    <li>{{ data.attacks.honeypot_posts }} post(s) to the honeypot address</li>
-    {% endif %}
-  </ul>
-</section>
-{% endif %}
-
+{# Блока тревог здесь нет намеренно. Ловушки срабатывают ежедневно: имена
+   попадают в Certificate Transparency в момент выпуска сертификата, и сканеры
+   читают эти логи в течение часа. Тревога, которая горит всегда, значит
+   ничего — а §11 отводит ей роль «что-то произошло». Она уходит в Telegram
+   по смене уровня детекторов, и только туда. #}
 <section class="verdict verdict--{{ data.verdict|lower|replace(' ', '-') }}">
   <h1>{{ data.verdict }}</h1>
   <p class="numbers">
@@ -113,10 +104,7 @@
     {{ totals.identities|plural("identity", "identities") }} ·
     {{ totals.shared_addresses }} shared
   </p>
-  <p class="numbers dim">
-    24h: {{ data.attacks.probes }} probes from {{ data.attacks.sources }} sources ·
-    canary {{ data.attacks.canary }} · build {{ code_rev }}
-  </p>
+  <p class="numbers dim">build {{ code_rev }}</p>
 </section>
 
 <footer>
