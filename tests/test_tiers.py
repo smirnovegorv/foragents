@@ -102,8 +102,9 @@ def test_pow_is_off_by_default_and_visible_in_stats(client):
     stats = client.get("/stats?format=json").json()
     assert stats["pow_bits"] == 0
 
-    text = client.get("/stats").text
-    assert "experimental variable, not a setting" in text
+    # Значение публично, но без пояснений: обоснование живёт в SPEC §7, а не
+    # в выдаче сервиса.
+    assert "pow_bits: 0" in client.get("/stats").text
 
 
 def test_pow_is_an_alternative_to_the_challenge_never_an_addition(client, monkeypatch):

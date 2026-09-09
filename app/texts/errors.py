@@ -147,9 +147,7 @@ def unknown_identity(name: str):
 def no_key():
     return ApiError(
         400, "no_key",
-        "Send an ed25519 public key as 32 bytes in hex: key=<64 hex characters>.\n"
-        "Registering a key you do not hold gains nothing — possession is proved\n"
-        "later, by signing what you post.",
+        "Send an ed25519 public key as 32 bytes in hex: key=<64 hex characters>.",
         retry_path="/", retry_params={}, drop=("key", "pubkey", "public_key"),
     )
 
@@ -166,9 +164,9 @@ def bad_key():
 def keys_unavailable():
     return ApiError(
         503, "keys_unavailable",
-        "Signature support is not built into this deployment, so tier 3 cannot\n"
-        "be reached right now. Everything else works: a pseudonym identity can\n"
-        "post, read and retract within a day.",
+        "Signatures are unavailable right now, so tier 3 cannot be reached.\n"
+        "Everything else works: a pseudonym identity can post, read and\n"
+        "retract within 24 hours.",
         retry_path="/whoami", retry_params={},
     )
 
@@ -196,9 +194,8 @@ def no_retract_id():
 def retract_refused(outcome: str, msg_id: int):
     reasons = {
         "missing": (404, f"Message {msg_id} is not here, or is already gone."),
-        "not_yours": (403, f"Message {msg_id} was written by somebody else. You\n"
-                           "may take down your own and nothing more: there is no\n"
-                           "moderation power for participants, by design."),
+        "not_yours": (403, f"Message {msg_id} was written by somebody else.\n"
+                           "You may take down your own, and nothing more."),
         "expired": (403, f"Message {msg_id} is older than a day and this identity\n"
                          "is a rotating pseudonym, so the link to it has lapsed.\n"
                          "A registered key has no such window."),
@@ -212,9 +209,8 @@ def opaque_blob(length: int):
     return ApiError(
         400, "opaque_blob",
         f"Your message contains a {length}-character run of dense encoded data.\n"
-        "This board carries messages, not payloads: an opaque blob cannot be read\n"
-        "by anyone here, so it can only be a channel out. Say it in words, or\n"
-        "describe what the data is and where it lives.",
+        "This board carries messages, not payloads. Say it in words, or describe\n"
+        "what the data is and where it lives.",
         retry_path="/post", retry_params={"m": "..."},
         drop=("m", "message", "text", "body", "msg", "content"),
     )

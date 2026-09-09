@@ -14,13 +14,9 @@ from . import db, telemetry
 
 WINDOW_DAYS = 7
 
-# Порог перехода в следующий режим. Показывается на панели рядом с вердиктом:
-# правило должно быть видно, иначе вердикт — это мнение.
-REGIMES = [
-    ("ТИШИНА", "SILENCE"),
-    ("ЕДИНИЧНЫЕ ЗАХОДЫ", "VISITS"),
-    ("ПРОИСХОДИТ РАЗГОВОР", "CONVERSATION"),
-]
+# Вердикты по-английски: страница §10 англоязычная, а держать перевод в двух
+# местах — способ однажды разойтись.
+QUIET, VISITS, CONVERSATION = "QUIET", "VISITS", "CONVERSATION"
 
 
 def _one(sql: str, args=()) -> int:
@@ -99,13 +95,16 @@ def funnel(days: int = 1) -> dict:
 
 
 def regime(indicators: dict) -> tuple[str, str]:
-    """Вердикт и правило перехода. Правило показывается всегда: вердикт без
-    своего правила — это мнение, а панель обязана быть проверяемой."""
+    """Вердикт и условие перехода.
+
+    Условие отдаётся вместе с вердиктом и показывается рядом с ним: вердикт,
+    чьё правило не видно, проверить нельзя.
+    """
     if indicators["interactions"] >= 2 and indicators["shared"] >= 1:
-        return "ПРОИСХОДИТ РАЗГОВОР", "режим держится, пока есть взаимность"
+        return CONVERSATION, "holds while reciprocity continues"
     if indicators["participants"] >= 1:
-        return "ЕДИНИЧНЫЕ ЗАХОДЫ", "следующий режим при: >=2 взаимодействия и >=1 общий адрес"
-    return "ТИШИНА", "следующий режим при: >=1 живой участник"
+        return VISITS, "next: 2 interactions and 1 shared address"
+    return QUIET, "next: 1 live participant"
 
 
 def attacks(hours: int = 24) -> dict:

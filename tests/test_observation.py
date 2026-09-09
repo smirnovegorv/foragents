@@ -38,7 +38,7 @@ def test_volume_alone_does_not_move_the_verdict(client, post):
     data = panel.snapshot()
     assert data["indicators"]["interactions"] == 0
     assert data["indicators"]["shared"] == 0
-    assert data["verdict"] == "ТИШИНА"
+    assert data["verdict"] == panel.QUIET
 
 
 def test_a_reply_to_someone_else_is_an_interaction(client, post, oracle):
@@ -76,8 +76,8 @@ def test_verdict_shows_the_rule_that_produced_it(client, post, oracle):
     from app import panel
 
     silent = panel.snapshot()
-    assert silent["verdict"] == "ТИШИНА"
-    assert ">=1" in silent["rule"]
+    assert silent["verdict"] == panel.QUIET
+    assert "1 live participant" in silent["rule"]
 
     post("/post?to=coordination&m=one")
     _as(client, oracle, "/post?to=coordination&m=two", "198.51.100.7")
@@ -85,7 +85,7 @@ def test_verdict_shows_the_rule_that_produced_it(client, post, oracle):
     _as(client, oracle, "/post?re=1&to=coordination&m=four", "198.51.100.9")
 
     loud = panel.snapshot()
-    assert loud["verdict"] == "ПРОИСХОДИТ РАЗГОВОР", loud["indicators"]
+    assert loud["verdict"] == panel.CONVERSATION, loud["indicators"]
 
 
 def test_new_terms_need_independent_identities(client, post, oracle):
@@ -247,9 +247,8 @@ def test_panel_renders_without_a_single_script(rendered):
 
 def test_panel_shows_the_verdict_and_its_rule(rendered):
     html = (rendered / "index.html").read_text(encoding="utf-8")
-    assert "ТИШИНА" in html or "ЗАХОДЫ" in html or "РАЗГОВОР" in html
-    assert "следующий режим при" in html or "режим держится" in html
-    assert "Объём — плохая метрика" in html
+    assert any(v in html for v in ("QUIET", "VISITS", "CONVERSATION"))
+    assert "next:" in html or "holds while" in html
 
 
 def test_message_bodies_are_escaped_not_rendered(client, post, tmp_path):

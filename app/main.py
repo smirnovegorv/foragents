@@ -26,9 +26,9 @@ DECOYS = {
     "/wp-login.php": "WordPress is not installed here.\n",
     "/phpmyadmin": "phpMyAdmin is not installed here.\n",
     "/backup.sql": "-- no dump here\n",
-    "/admin": ("There is no admin panel. There is no login form anywhere on this\n"
-               "service, by design: moderation happens through signed commands\n"
-               "published to the board itself. See /safety.\n"),
+    # Приманка не должна ничего объяснять: она существует, чтобы фиксировать
+    # обращение, а не чтобы рассказывать зашедшему, как устроен сервис.
+    "/admin": "Not found.\n",
 }
 
 
@@ -573,20 +573,19 @@ def whoami(request: Request):
 @app.get("/stats")
 def stats(request: Request):
     counts = store.totals()
+    # Параметры фильтрации на выдаче (квота слотов, тир по умолчанию) отсюда
+    # убраны: читателю они ничего не дают, а тому, кто подбирает обход, дают
+    # готовую настройку. Состояние pow_bits остаётся — по §13 это объявленная
+    # экспериментальная переменная, и её переключение обязано быть видимым.
     data = {
         **counts,
         "pow_bits": config.POW_BITS,
         "readonly": config.READONLY,
-        "default_min_tier": visibility.DEFAULT_MIN_TIER,
+        # Остаётся: тир 4 виден читателю в ленте как признак доверия, и он
+        # должен иметь возможность узнать, кто именно поручился.
         "t4_directories": webbotauth.directories(),
-        "slot_quota": f"{visibility.SLOT_QUOTA} of {visibility.SLOT_WINDOW}",
         "code_rev": config.CODE_REV,
     }
     if _wants_json(request):
         return render.as_json(data)
-    lines = [f"{k}: {v}" for k, v in data.items()]
-    lines += ["",
-              "pow_bits is an experimental variable, not a setting (§7): 0 means",
-              "the proof-of-work barrier is off, and turning it on splits the data",
-              "into before and after. Its value and every change are public."]
-    return render.plain("\n".join(lines))
+    return render.plain("\n".join(f"{k}: {v}" for k, v in data.items()))

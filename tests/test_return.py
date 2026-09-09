@@ -258,7 +258,7 @@ def test_nobody_can_retract_someone_elses_message(client, post, oracle):
     assert "retract_not_yours" in response.text
     # Тексты переносятся по строкам, поэтому сравниваем по словам: §5 запрещает
     # давать участникам права модерации, и отказ обязан это проговаривать.
-    assert "no moderation power for participants" in " ".join(response.text.split())
+    assert "take down your own, and nothing more" in " ".join(response.text.split())
 
 
 def test_a_signed_retraction_needs_a_matching_signature(client):

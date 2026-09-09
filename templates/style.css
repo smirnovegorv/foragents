@@ -4,12 +4,13 @@
 
 :root {
   --ink: #1a1a1a;
-  --dim: #666;
-  --line: #ddd;
+  --dim: #6b6b6b;
+  --line: #e2e2df;
   --bg: #fdfdfc;
   --warn: #b45309;
   --alarm: #b91c1c;
   --calm: #4b5563;
+  --live: #15803d;
 }
 
 * { box-sizing: border-box; }
@@ -18,44 +19,56 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 16px/1.55 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font: 15px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
-main { max-width: 46rem; margin: 0 auto; padding: 1.25rem 1rem 4rem; }
+main { max-width: 44rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
 
-section { margin: 0 0 2.25rem; }
+section { margin: 0 0 2rem; }
 
-h1 { font-size: 1.9rem; margin: 0 0 .4rem; letter-spacing: .02em; }
-h2 { font-size: .85rem; text-transform: uppercase; letter-spacing: .09em;
-     color: var(--dim); margin: 0 0 .6rem; font-weight: 600; }
+h1 { font-size: 2rem; margin: 0 0 .35rem; letter-spacing: .04em; }
+h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: .1em;
+     color: var(--dim); margin: 0 0 .55rem; font-weight: 600; }
 
 .verdict { border-left: 4px solid var(--calm); padding-left: .9rem; }
-.verdict--происходит-разговор { border-color: #15803d; }
-.verdict--единичные-заходы { border-color: var(--warn); }
+.verdict--conversation { border-color: var(--live); }
+.verdict--conversation h1 { color: var(--live); }
+.verdict--visits { border-color: var(--warn); }
+.verdict--visits h1 { color: var(--warn); }
 
-.numbers { margin: .2rem 0; }
-.rule { margin: .5rem 0 0; color: var(--warn); }
-.note { color: var(--dim); font-size: .85rem; margin: .5rem 0 0; }
+.numbers { margin: .15rem 0; }
+.rule { margin: .45rem 0 0; color: var(--warn); font-size: .88rem; }
+.dim { color: var(--dim); }
 
-.alarm { border: 2px solid var(--alarm); padding: .75rem .9rem; }
+.alarm { border: 2px solid var(--alarm); padding: .7rem .9rem; }
 .alarm h2 { color: var(--alarm); }
 .alarm ul { margin: 0; padding-left: 1.1rem; }
 
 .chart { color: var(--calm); }
 
-table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+table { border-collapse: collapse; width: 100%; font-size: .88rem; }
 th { text-align: left; color: var(--dim); font-weight: 600; }
-th, td { border-bottom: 1px solid var(--line); padding: .3rem .5rem .3rem 0; }
+th, td { border-bottom: 1px solid var(--line); padding: .28rem .5rem .28rem 0; }
+td + td, th + th { text-align: right; width: 5rem; }
 
-.msg { border-top: 1px solid var(--line); padding: .7rem 0; }
-.meta { color: var(--dim); font-size: .8rem; margin: 0 0 .35rem;
+.terms { margin: 0; padding-left: 1.1rem; }
+.terms li { margin: .15rem 0; }
+
+.msg { border-top: 1px solid var(--line); padding: .65rem 0; }
+.meta { color: var(--dim); font-size: .78rem; margin: 0 0 .3rem;
         display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
 
 /* Тир и флаги — крупными цветными чипами: человек такая же мишень, как агент. */
 .chip { display: inline-block; padding: .05rem .45rem; border-radius: .2rem;
-        font-size: .78rem; font-weight: 600; }
+        font-size: .74rem; font-weight: 600; }
 .chip--tier { background: #e5e7eb; color: #374151; }
 .chip--flag { background: #fef3c7; color: var(--warn); }
+
+.warning { border-left: 3px solid var(--warn); padding-left: .7rem;
+           color: var(--dim); font-size: .85rem; margin: 0 0 1rem; }
+
+.hidden-note { color: var(--dim); font-size: .8rem;
+               border-left: 2px solid var(--line); padding-left: .6rem; }
 
 /* unicode-bidi: isolate на каждое поле — иначе строка с bidi-символами
    переставляет соседний текст, и подделка выглядит как настоящая (§10). */
@@ -70,10 +83,7 @@ pre {
   font: inherit;
 }
 
-.hidden-note { color: var(--dim); font-size: .82rem;
-               border-left: 2px solid var(--line); padding-left: .6rem; }
-
 a { color: inherit; text-underline-offset: .18em; }
 
-footer { border-top: 1px solid var(--line); padding-top: 1rem;
-         font-size: .85rem; color: var(--dim); }
+footer { border-top: 1px solid var(--line); padding-top: .9rem;
+         font-size: .82rem; color: var(--dim); }

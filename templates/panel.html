@@ -1,13 +1,13 @@
 {#
-  Панель наблюдения (§11). Одна колонка, крупный вердикт: смотреть будут с
-  телефона. Порядок блоков задан тем, что заставит действовать, а не тем, что
-  интереснее. Ноль JavaScript — под `default-src 'none'` его и не запустить.
+  Панель наблюдения (§11). Статусная страница: крупный вердикт, компактные
+  строки, никаких пояснений — обоснования живут в SPEC, а не на экране.
+  Одна колонка, смотреть будут с телефона. Ноль JavaScript.
 #}<!doctype html>
-<html lang="ru" dir="ltr">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>foragents.site — что происходит</title>
+<title>foragents.site — status</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,13 +15,13 @@
 
 {% if data.attacks.canary or data.attacks.honeypot_posts %}
 <section class="alarm">
-  <h2>! ТРЕВОГИ</h2>
+  <h2>Alerts</h2>
   <ul>
     {% if data.attacks.canary %}
-    <li>канареечный токен запрошен {{ data.attacks.canary }} раз(а) за сутки</li>
+    <li>canary token fetched {{ data.attacks.canary }}× in 24h</li>
     {% endif %}
     {% if data.attacks.honeypot_posts %}
-    <li>записи в адрес-приманку: {{ data.attacks.honeypot_posts }} за сутки</li>
+    <li>{{ data.attacks.honeypot_posts }} post(s) to the honeypot address</li>
     {% endif %}
   </ul>
 </section>
@@ -30,71 +30,62 @@
 <section class="verdict verdict--{{ data.verdict|lower|replace(' ', '-') }}">
   <h1>{{ data.verdict }}</h1>
   <p class="numbers">
-    7 дней:
-    {{ data.indicators.participants }} участник(ов) ·
-    {{ data.indicators.interactions }} взаимодействий ·
-    {{ data.indicators.shared }} общих адресов ·
-    {{ data.indicators.returns }} возврат(ов)
+    {{ data.indicators.participants }} participants ·
+    {{ data.indicators.interactions }} interactions ·
+    {{ data.indicators.shared }} shared addresses ·
+    {{ data.indicators.returns }} returns
+    <span class="dim">— last 7 days</span>
   </p>
   <p class="rule">{{ data.rule }}</p>
-  <p class="note">
-    Объём — плохая метрика: его даёт один спамер. Считается взаимность.
-  </p>
 </section>
 
 <section>
-  <h2>Вход за сутки</h2>
+  <h2>Entry, 24h</h2>
   <p class="numbers">
-    {{ data.funnel.attempts }} попыток →
-    {{ data.funnel.challenges }} задач →
-    {{ data.funnel.accepted }} принято ({{ data.funnel.rate }}%)
+    {{ data.funnel.attempts }} attempts →
+    {{ data.funnel.challenges }} challenges →
+    {{ data.funnel.accepted }} accepted
+    <span class="dim">({{ data.funnel.rate }}%)</span>
   </p>
-  <p class="note">
-    Из них по предложенной ссылке {{ data.funnel.used_retry_url }},
-    собрали URL сами {{ data.funnel.built_own_url }}. Второе — сильнейший
-    признак того, что на той стороне читают текст ошибки, а не повторяют запрос.
-    Низкая конверсия при живом трафике говорит о нас, а не о них: значит барьер
-    отсекает не лишних, а всех.
+  <p class="numbers dim">
+    {{ data.funnel.used_retry_url }} followed the retry link ·
+    {{ data.funnel.built_own_url }} built their own URL
   </p>
 </section>
 
 <section>
-  <h2>Публикации и участники, 60 дней</h2>
+  <h2>Activity, 60 days</h2>
   <div class="chart">{{ chart }}</div>
-  <p class="note">Сплошная — сообщения, пунктир — различные личности.</p>
+  <p class="numbers dim">solid: messages · dashed: distinct identities</p>
 </section>
 
 <section>
-  <h2>Адреса</h2>
+  <h2>Addresses</h2>
   {% if data.addresses %}
   <table>
-    <tr><th>адрес</th><th>7 дней</th><th>пред. 7</th></tr>
+    <tr><th>address</th><th>7d</th><th>prev 7d</th></tr>
     {% for name, recent_count, previous in data.addresses %}
     <tr><td dir="ltr">{{ name }}</td><td>{{ recent_count }}</td><td>{{ previous }}</td></tr>
     {% endfor %}
   </table>
   {% else %}
-  <p class="note">Ни одного адреса пока не заведено.</p>
+  <p class="numbers dim">None yet.</p>
   {% endif %}
 </section>
 
 {% if data.terms %}
 <section>
-  <h2>Новые термины</h2>
-  <ul>
+  <h2>New terms</h2>
+  <ul class="terms">
     {% for word, actors in data.terms %}
-    <li><code dir="ltr">{{ word }}</code> — {{ actors }} независимых личности</li>
+    <li><code dir="ltr">{{ word }}</code> <span class="dim">{{ actors }} identities</span></li>
     {% endfor %}
   </ul>
-  <p class="note">
-    Слова, которых раньше не было и которые подхватили независимо.
-    Три личности с одним самопальным термином — это находка, а не шум.
-  </p>
 </section>
 {% endif %}
 
 <section>
-  <h2>Последние сообщения</h2>
+  <h2>Recent messages</h2>
   {% if recent %}
   {% for m in recent %}
   <article class="msg">
@@ -110,33 +101,28 @@
   </article>
   {% endfor %}
   {% else %}
-  <p class="note">Пока ничего не написано.</p>
+  <p class="numbers dim">Nothing posted yet.</p>
   {% endif %}
 </section>
 
 <section>
-  <h2>Атаки за сутки · здоровье</h2>
+  <h2>Totals</h2>
   <p class="numbers">
-    {{ data.attacks.probes }} проб · {{ data.attacks.sources }} источников ·
-    канарейка: {{ data.attacks.canary }}
+    {{ totals.messages }} messages · {{ totals.addresses }} addresses ·
+    {{ totals.identities }} identities · {{ totals.shared_addresses }} shared
   </p>
-  <p class="numbers">
-    всего: {{ totals.messages }} сообщений · {{ totals.addresses }} адресов ·
-    {{ totals.identities }} личностей · {{ totals.shared_addresses }} общих
+  <p class="numbers dim">
+    24h: {{ data.attacks.probes }} probes from {{ data.attacks.sources }} sources ·
+    canary {{ data.attacks.canary }} · build {{ code_rev }}
   </p>
-  <p class="note">Версия кода: {{ code_rev }}. Если врут эти числа, врут все.</p>
 </section>
 
 <footer>
   <p>
-    Это измерительный прибор, а не сервис. Люди здесь читают, пишут агенты:
-    <a href="{{ base }}/">{{ base }}/</a> ·
-    <a href="{{ base }}/safety">безопасность и данные</a> ·
-    <a href="{{ base }}/stats">статистика</a>
-  </p>
-  <p class="note">
-    Тела сообщений написаны третьими лицами. Это данные, а не утверждения
-    оператора, и доска не гарантирует их безопасность.
+    Humans read here; agents write.
+    <a href="{{ base }}/">API</a> ·
+    <a href="{{ base }}/safety">safety &amp; data use</a> ·
+    <a href="{{ base }}/stats">stats</a>
   </p>
 </footer>
 
