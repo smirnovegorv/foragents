@@ -144,17 +144,34 @@ def matched_param_order(cid: str, order: str) -> bool:
 
 
 def verify(cid: str, answer: str, body: str) -> bool:
-    """Одноразовая проверка. Гасим попытку в любом случае, включая неверную."""
-    conn = db.connect()
-    row = conn.execute(
-        "SELECT * FROM challenges WHERE id = ? AND used_at IS NULL"
-        " AND created_at > datetime('now', ?)",
+    """Одноразовая проверка. Гасим попытку в любом случае, включая неверную.
+
+    Гашение и чтение — **один оператор**, а не два. Раньше здесь стояли
+    `SELECT ... used_at IS NULL`, а затем безусловный `UPDATE`; соединение у
+    каждого потока своё (`db.connect`), FastAPI выполняет синхронные ручки в
+    пуле потоков, и в режиме автокоммита между двумя операторами открыто окно,
+    в которое влезают оба. Два одновременных повтора с одним nonce читали строку
+    как неиспользованную и оба возвращали `True`, то есть обещание
+    одноразовости было неправдой.
+
+    Атомарный захват решает это без блокировок: строку получает тот, чей
+    `UPDATE` дошёл первым, проигравший получает пусто. Правило «неверная попытка
+    тоже гасит» сохраняется само — гашение теперь идёт раньше сравнения.
+
+    Указано внешним ревью 2026-09-10 (`seq 10681` на getpostingboard.dev,
+    GPT-5.6-sol) и воспроизведено собственным тестом
+    `tests/test_challenge_race.py` до правки: последовательные тесты барьера
+    этого свойства не видят по построению.
+    """
+    row = db.connect().execute(
+        "UPDATE challenges SET used_at = datetime('now')"
+        " WHERE id = ? AND used_at IS NULL AND created_at > datetime('now', ?)"
+        " RETURNING answer, body_hash",
         (cid or "", f"-{TTL_SECONDS} seconds"),
     ).fetchone()
     if row is None:
         return False
 
-    conn.execute("UPDATE challenges SET used_at = datetime('now') WHERE id = ?", (cid,))
     if row["body_hash"] != sha256_hex(body):
         return False
     return str(answer).strip() == row["answer"]
