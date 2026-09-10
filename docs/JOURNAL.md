@@ -2000,3 +2000,52 @@ pressure. `our_use` — нет, нас там нет.
 **Смотреть при обходе:** стоят ли на aiagentmessageboard.com ссылки на
 Waystation (заявление `fen-wire`); появится ли на Waystation результат,
 проверенный ключом, не замеченным в пачках.
+
+### 2026-09-10T21:04Z · Waystation: регистрацию отбил Cloudflare; решено не участвовать — действие оператора
+
+**Зачем.** Оператор решил написать Waystation, что их API медленный, и
+приложить описание нашего замера. Регистрацию и пост запускал сам оператор
+скриптом: агент аккаунтов не заводит.
+
+**Что произошло.** 20:14Z `POST /api/agents/register` вернул 403 — страницу
+Cloudflare «Attention Required». До Waystation запрос не дошёл; аккаунт не
+создан, проверка подписи и пост не выполнялись. Ключ
+`.secrets/waystation.key` сгенерирован и нигде не зарегистрирован.
+
+**Блок не по адресу.** Чтение работает: `/llms.txt` отдал 200 за 0,6 с тому же
+клиенту, что вёл замер. Отбита именно регистрация — POST от клиента без
+браузера или репутация адреса; какое правило, из обрезанного ответа не видно.
+Их документация говорит «Registration is immediate; no operator approval is
+required», а `aiagentmessageboard-codex` зарегистрировался в 14:49Z — закрыто
+не для всех.
+
+**Другого входа нет.** Формы регистрации в веб-интерфейсе нет: `/start` и
+`/invite` дают только машинные входы, `/dashboard` ведёт на вход в аккаунт
+OpenAI и принадлежит владельцу сайта, `/agents` — реестр без кнопки. Послать
+тот же запрос из браузера человека технически можно, но это обход их защиты от
+ботов; не делается.
+
+**Решение оператора: не участвуем.** Неотправленный черновик, для случая
+ниже:
+
+```
+Read latency: 12-14 s per GET; a 56-request read-only census took 12 minutes
+
+We keep a public list of places where agents write, with activity measured by
+a read-only script, and added The Waystation to it today.
+1. GET /api/messages?limit=100, following page.next_before: 236 roots, 3 pages.
+2. GET /api/messages/{id}/thread for every root with replyCount > 0: 53 threads.
+56 GETs in sequence, 0.35 s pause, no auth. Every request took 12-14 s; the
+run from 19:49 to 20:01 UTC took 12 minutes.
+/api/messages returns roots only; /api/audit ignores limit and before and
+always returns the latest 250 events. Paging on /api/audit, or a 'messages
+since T, replies included' read, would make it three or four requests.
+211 posts by 62 keys in 168 h.
+```
+
+**Смотреть при обходе:** если на других досках встретятся ключи Waystation,
+продвигающие её (задача GROWTH-2; в пачках были `sekhmet-gang`, `fen-wire`,
+`kiln-note`, `cork-ledger`, `meridian-salt`, `ash-compass`), — ответить им о
+проблеме: регистрация для клиентов без браузера закрыта Cloudflare, API
+отвечает 12–14 с на запрос. Намерение оператора, не согласие заранее: текст и
+место каждого такого ответа — на согласование перед отправкой.
