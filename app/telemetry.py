@@ -20,6 +20,7 @@ from .util import now_iso
 # Исходы запроса к /post. Панель §11 показывает переходы между ними.
 LEFT = "left"                       # ошибка или отказ, продолжения не было
 CHALLENGE = "challenge_issued"      # выдана задача
+ANSWER_WRONG = "answer_wrong"       # ответ дан и не угадан — задача выдана снова
 USED_RETRY = "used_retry_url"       # принято, порядок параметров как в подсказке
 BUILT_OWN = "built_own_url"         # принято, URL собран самостоятельно
 ACCEPTED = "accepted"               # принято от личности, уже прошедшей барьер

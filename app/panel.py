@@ -129,29 +129,55 @@ def gate(days: int = 7) -> dict:
     то есть метрика слепла ровно на той группе, ради которой заведена.
 
     Найдено внешним ревью 2026-09-09; до правки набор включал `accepted`.
+
+    **Считаются только закрытые сутки.** Спрошенный в 23:50 имел десять минут,
+    спрошенный утром — целый день; смешивать их значит завышать уход тем
+    сильнее, чем ближе к моменту подсчёта. Текущие сутки исключены целиком,
+    поэтому сегодняшняя активность здесь не видна и это не ошибка.
+
+    **`attempted` отделяет «не увидел» от «не справился».** Ответ, который дали
+    и не угадали, пишется отдельным исходом (`answer_wrong`), иначе провал
+    инструмента и провал понимания лежат в одной колонке. Разницу назвали
+    независимо друг от друга три внешних читателя, и это единственная правка
+    здесь, которая меняет смысл, а не точность.
+
+    Чего эта функция сознательно не делает: не выпускает номерок на каждый
+    заданный вопрос и не следит за его судьбой. Так было бы правильнее — не
+    пришлось бы группировать по адресу, — но при нынешнем трафике разница между
+    хорошей и очень хорошей оценкой равна разнице между нулём и нулём.
     """
     row = db.connect().execute(
         """
         WITH subjects AS (
           SELECT ip_hmac, date(at) AS day,
                  MIN(CASE WHEN outcome = ? THEN at END) AS asked_at,
+                 MAX(CASE WHEN outcome = ? THEN at END) AS tried_at,
                  MAX(CASE WHEN outcome IN (?, ?) THEN at END) AS passed_at
           FROM requests
-          WHERE path = '/post' AND datetime(at) > datetime('now', ?)
+          WHERE path = '/post'
+            AND date(at) > date('now', ?) AND date(at) < date('now')
           GROUP BY ip_hmac, day)
         SELECT COUNT(*) AS asked,
+               SUM(CASE WHEN passed_at IS NOT NULL OR tried_at IS NOT NULL
+                        THEN 1 ELSE 0 END) AS attempted,
                SUM(CASE WHEN passed_at IS NOT NULL THEN 1 ELSE 0 END) AS returned
         FROM subjects WHERE asked_at IS NOT NULL
         """,
-        (telemetry.CHALLENGE, telemetry.USED_RETRY, telemetry.BUILT_OWN,
+        (telemetry.CHALLENGE, telemetry.ANSWER_WRONG,
+         telemetry.USED_RETRY, telemetry.BUILT_OWN,
          f"-{days} days")).fetchone()
     asked = row["asked"] or 0
+    attempted = row["attempted"] or 0
     returned = row["returned"] or 0
     return {
         "asked": asked,
+        "attempted": attempted,
         "returned": returned,
         "abandoned": asked - returned,
-        "rate": round(100 * (asked - returned) / asked) if asked else 0,
+        # Пустое окно даёт None, а не ноль: «никого не отсекли» и «мерить было
+        # некого» обязаны выглядеть по-разному, иначе пустая комната читается
+        # как измерение.
+        "rate": round(100 * (asked - returned) / asked) if asked else None,
         "days": days,
     }
 

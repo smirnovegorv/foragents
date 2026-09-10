@@ -141,6 +141,20 @@ def test_funnel_is_zero_when_nobody_finishes(client):
 # Ложные исключения барьера: обещаны публично, значит обязаны считаться
 # --------------------------------------------------------------------------
 
+def _close_the_day():
+    """Сдвигает записи запросов на сутки назад.
+
+    `gate()` считает только закрытые сутки: спрошенный в 23:50 имел десять
+    минут, спрошенный утром — целый день, и смешивать их значит завышать уход.
+    Сегодняшняя активность поэтому в метрику не входит, а тесты проходят по
+    настоящему конвейеру и пишут именно сегодняшние строки. Сдвиг закрывает
+    сутки, не подменяя ничего, кроме отметки времени.
+    """
+    from app import db
+    db.connect().execute(
+        "UPDATE requests SET at = datetime(at, '-1 day')")
+
+
 def test_gate_counts_identities_asked_not_requests(client, oracle):
     """Спросили двоих, вернулся один. Конверсия по запросам этого не покажет."""
     from app import panel
@@ -149,6 +163,7 @@ def test_gate_counts_identities_asked_not_requests(client, oracle):
     client.get("/post?to=probe&m=i+left",
                headers={"X-Forwarded-For": "198.51.100.12"})
 
+    _close_the_day()
     gate = panel.gate()
     assert gate["asked"] == 2, gate
     assert gate["returned"] == 1, gate
@@ -166,6 +181,7 @@ def test_gate_ignores_clients_already_past_the_barrier(client, oracle):
         client.get(f"/post?to=probe&m=another+one+{n}",
                    headers={"X-Forwarded-For": "198.51.100.13"})
 
+    _close_the_day()
     gate = panel.gate()
     assert gate["asked"] == 1, gate
     assert gate["abandoned"] == 0, gate
@@ -187,18 +203,59 @@ def test_gate_does_not_let_an_established_agent_cover_a_newcomer(client):
             "INSERT INTO requests (at, path, ip_hmac, outcome) VALUES (?,?,?,?)",
             (now_iso(), "/post", "shared-egress", outcome))
 
+    _close_the_day()
     gate = panel.gate()
     assert gate["asked"] == 1, gate
     assert gate["returned"] == 0, gate
     assert gate["abandoned"] == 1, gate
 
 
+def test_gate_separates_a_wrong_answer_from_silence(client, oracle):
+    """Провал понимания и провал инструмента — разные вещи, и до 2026-09-09 они
+    лежали в одной колонке. Три внешних читателя назвали это независимо друг от
+    друга; здесь оно и проверяется.
+    """
+    from app import panel
+
+    # Спросили и ответили неверно: клиент текст увидел и не справился.
+    first = client.get("/post?to=probe&m=i+guessed",
+                       headers={"X-Forwarded-For": "198.51.100.21"})
+    nonce = re.search(r"nonce=([0-9a-f]+)", first.text).group(1)
+    wrong = str((int(oracle.answer_for(nonce)) % 3) + 1)
+    client.get(f"/post?answer={wrong}&nonce={nonce}&to=probe&m=i+guessed",
+               headers={"X-Forwarded-For": "198.51.100.21"})
+
+    # Спросили и ушли молча: возможно, текста вопроса даже не увидели.
+    client.get("/post?to=probe&m=i+said+nothing",
+               headers={"X-Forwarded-For": "198.51.100.22"})
+
+    _close_the_day()
+    gate = panel.gate()
+    assert gate["asked"] == 2, gate
+    assert gate["attempted"] == 1, gate
+    assert gate["returned"] == 0, gate
+
+
+def test_gate_ignores_the_day_that_is_still_running(client, oracle):
+    """Открытые сутки в счёт не идут: у спрошенного минуту назад ещё есть
+    время ответить, и записывать его в отсеянные — завышать уход тем сильнее,
+    чем ближе к моменту подсчёта."""
+    from app import panel
+
+    client.get("/post?to=probe&m=asked+just+now",
+               headers={"X-Forwarded-For": "198.51.100.23"})
+
+    assert panel.gate()["asked"] == 0
+    _close_the_day()
+    assert panel.gate()["asked"] == 1
+
+
 def test_gate_counts_nobody_when_nobody_was_asked(client):
     from app import panel
 
     gate = panel.gate()
-    assert gate == {"asked": 0, "returned": 0, "abandoned": 0, "rate": 0,
-                    "days": 7}
+    assert gate == {"asked": 0, "attempted": 0, "returned": 0, "abandoned": 0,
+                    "rate": None, "days": 7}
 
 
 def test_stats_publishes_false_exclusions(client):
@@ -207,10 +264,18 @@ def test_stats_publishes_false_exclusions(client):
     исполненной."""
     client.get("/post?to=probe&m=asked+and+gone")
 
+    _close_the_day()
     body = client.get("/stats").text
     assert "gate_asked_7d: 1" in body, body
     assert "gate_abandoned_7d: 1" in body, body
     assert "gate_abandoned_pct: 100" in body, body
+
+
+def test_stats_says_no_estimate_instead_of_zero_percent(client):
+    """Пустая комната и «никого не отсекли» обязаны читаться по-разному: ноль
+    выглядит как измерение, которого не было."""
+    body = client.get("/stats").text
+    assert "gate_abandoned_pct: no estimate" in body, body
 
 
 # --------------------------------------------------------------------------

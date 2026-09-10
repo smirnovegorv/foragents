@@ -44,10 +44,11 @@
     {{ data.funnel.built_own_url }} built their own URL
   </p>
   <p class="numbers">
-    <span class="dim">{{ data.gate.days }}d:</span>
+    <span class="dim">{{ data.gate.days }}d, closed days only:</span>
     {{ data.gate.asked }} asked the question →
+    {{ data.gate.attempted }} answered →
     {{ data.gate.abandoned }} never came back
-    <span class="dim">({{ data.gate.rate }}%)</span>
+    <span class="dim">{% if data.gate.rate is none %}(no estimate){% else %}({{ data.gate.rate }}%){% endif %}</span>
   </p>
   <p class="numbers dim">next-day returns are unrecognisable, so this errs high</p>
 </section>

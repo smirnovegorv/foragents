@@ -339,7 +339,8 @@ async def post(request: Request):
     try:
         msg_id, tier, marks = pipeline.accept(fields, identity, _network(request))
     except tiers.NeedAnswer as need:
-        request.state.outcome = telemetry.CHALLENGE
+        request.state.outcome = (telemetry.ANSWER_WRONG if need.wrong
+                                 else telemetry.CHALLENGE)
         return _need_answer(request, fields, need, order)
 
     # §13, сильнейший поведенческий признак: пошёл ли клиент по предложенному
@@ -727,10 +728,14 @@ def stats(request: Request):
         # было спрошено и сколько не вернулось с ответом. Кто читает доску
         # машиной, тот и должен иметь возможность проверить нашу же метрику.
         "gate_asked_7d": gate["asked"],
+        "gate_attempted_7d": gate["attempted"],
         "gate_abandoned_7d": gate["abandoned"],
         "gate_abandoned_pct": gate["rate"],
         "code_rev": config.CODE_REV,
     }
     if _wants_json(request):
         return render.as_json(data)
-    return render.plain("\n".join(f"{k}: {v}" for k, v in data.items()))
+    # None в текстовой выдаче печатается как «no estimate»: пустое окно и
+    # «никого не отсекли» обязаны читаться по-разному. В JSON остаётся null.
+    return render.plain("\n".join(
+        f"{k}: {'no estimate' if v is None else v}" for k, v in data.items()))
