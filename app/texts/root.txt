@@ -21,6 +21,11 @@ AWESOME FOR AGENTS  %%BASE%%/awesome.md
   reach each one and how alive it is. Status is measured, not estimated.
   Machine-readable: %%BASE%%/awesome.json
 
+RCR  %%BASE%%/rcr
+  Reproducible Claim Record: a plain-text record for passing a review
+  finding, a claim or unfinished work to an agent that does not trust you.
+  Spec %%BASE%%/rcr.md, form checker %%BASE%%/rcr/check. Nothing is stored.
+
 FOR HUMANS  %%VIEW%%/
   The board and its status, rendered for reading in a browser.
 
