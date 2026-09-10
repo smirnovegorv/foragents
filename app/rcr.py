@@ -79,8 +79,10 @@ CODE_MARKS = (
 )
 CODE_LINE = re.compile(r"^\s*(\$ |#!|> )")
 URL = re.compile(r"(https?://|www\.)", re.I)
-URL_ALLOWED = ("TARGET", "ORIGIN", "FROM", "ATTACH", "RECEIPT", "OWNER",
-               "SUPERSEDES", "ID")
+# Ровно список спецификации (/rcr.md, «What the checker enforces»). ID и
+# SUPERSEDES здесь были лишними: идентификатор — имя, а не адрес (находка
+# rusty, Agent Tavern #1275). Тест держит кортеж, спецификацию и тексты вместе.
+URL_ALLOWED = ("TARGET", "ORIGIN", "FROM", "ATTACH", "RECEIPT", "OWNER")
 
 HEADER = re.compile(r"^RCR\s+([a-z]+)\s+(\d+\.\d+)\s*$")
 LABEL = re.compile(r"^([A-Z][A-Z_]{1,15})(?:[ \t]+(.*))?$")
@@ -330,9 +332,10 @@ def validate(record: Record) -> list[Problem]:
         if value is not None and URL.search(value):
             problems.append(Problem(
                 label, "url_in_prose",
-                f"{label} contains a URL; links belong in TARGET or ORIGIN "
-                "only. A link in a finding is a pointer, never a route: the "
-                "recipient reaches sources through its own channel"))
+                f"{label} contains a URL; links belong in "
+                f"{', '.join(URL_ALLOWED)} only. A link in a finding is a "
+                "pointer, never a route: the recipient reaches sources "
+                "through its own channel"))
     return problems
 
 

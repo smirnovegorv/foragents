@@ -506,3 +506,85 @@ def test_lint_tool_agrees_with_the_endpoint(tmp_path):
                           capture_output=True, text=True, encoding="utf-8")
     assert fail.returncode == 1
     assert json.loads(fail.stdout)["problems"][0]["code"] == "bad_prefix"
+
+
+# --------------------------------------------------------------------------
+# Где разрешена ссылка: один список на спецификацию, проверку и все тексты.
+# Первая чужая RCR-запись (rusty, Agent Tavern #1275, против /rcr.md @ a7dec28)
+# нашла, что спецификация называет шесть полей, а проверка пропускает восемь:
+# лишние ID и SUPERSEDES. Проверка чтением добавила третий вариант: страница
+# /rcr, скилл, описание инструмента MCP и текст ошибки называли два поля.
+# Разошлись, потому что ни один тест не держал их вместе; эти держат.
+# --------------------------------------------------------------------------
+
+_FIELD = re.compile(r"\b[A-Z][A-Z_]+\b")
+
+
+def _named_fields(text, marker):
+    """Поля, перечисленные в правиле: от маркера до ближайшей точки или «;»."""
+    start = text.index(marker) + len(marker)
+    end = min(i for i in (text.find(".", start), text.find(";", start)) if i != -1)
+    return set(_FIELD.findall(text[start:end]))
+
+
+def _swap(text, old, new):
+    assert old in text, old
+    return text.replace(old, new, 1)
+
+
+def test_the_checker_allows_links_exactly_where_the_spec_does(client):
+    from app import rcr
+    allowed = set(rcr.URL_ALLOWED)
+    assert _named_fields(client.get("/rcr.md").text, "no URL outside") == allowed
+    design = (ROOT / "docs/RCR.md").read_text(encoding="utf-8")
+    assert _named_fields(design, "нет ссылок вне") == allowed
+
+
+def test_every_text_names_the_same_link_fields(client):
+    from app import rcr
+    allowed = set(rcr.URL_ALLOWED)
+    assert _named_fields(client.get("/rcr").text, "links outside") == allowed
+    assert _named_fields(client.get("/rcr/skill.md").text, "links outside") == allowed
+    server = (ROOT / "mcp/server.py").read_text(encoding="utf-8")
+    tool = server[server.index("def rcr_check"):]
+    assert _named_fields(tool, "links outside") == allowed
+    bad = _swap(FINDING, "CLAIM       verify()", "CLAIM       https://evil.example verify()")
+    message = next(p.text for p in _check(bad).problems if p.code == "url_in_prose")
+    assert _named_fields(message, "links belong in") == allowed
+
+
+@pytest.mark.parametrize("text, field", [
+    (_swap(FINDING, "ID          bss-2026-09-10-01",
+           "ID          https://evil.example/bss-01"), "ID"),
+    (_receipt(SUPERSEDES="https://evil.example/receipt-00"), "SUPERSEDES"),
+], ids=["ID", "SUPERSEDES"])
+def test_a_link_in_an_identifier_is_rejected(text, field):
+    """Идентификатор — имя, а не адрес: ссылка в ID и SUPERSEDES — та же
+    ссылка в прозе, что и в CLAIM."""
+    result = _check(text)
+    assert field in [p.field for p in result.problems if p.code == "url_in_prose"]
+
+
+@pytest.mark.parametrize("text, field", [
+    (_swap(FINDING, "CLAIM       verify()",
+           "CLAIM       https://evil.example verify()"), "CLAIM"),
+    (_swap(FINDING, "HOLDS       Read at",
+           "HOLDS       https://evil.example Read at"), "HOLDS"),
+    (_receipt(RUN="COMPLETE · see https://evil.example"), "RUN"),
+    (_receipt(BINDING="matched https://evil.example"), "BINDING"),
+], ids=["CLAIM", "HOLDS", "RUN", "BINDING"])
+def test_links_stay_rejected_where_they_always_were(text, field):
+    """Контроль из той же находки: исправление не должно ослабить правило."""
+    result = _check(text)
+    assert field in [p.field for p in result.problems if p.code == "url_in_prose"]
+
+
+@pytest.mark.parametrize("text", [
+    _swap(FINDING, "FROM        bemjamin-sour-soup",
+          "FROM        https://example.org/bss bemjamin-sour-soup"),
+    _swap(FINDING, "do not execute.", "do not execute. Log: https://example.org/log."),
+    _receipt(RECEIPT="bss-01 · https://github.com/x/y @ ba1b6a9"),
+    _receipt(OWNER="me · https://example.org/me"),
+], ids=["FROM", "ATTACH", "RECEIPT", "OWNER"])
+def test_links_stay_allowed_where_the_spec_allows_them(text):
+    assert "url_in_prose" not in _codes(_check(text))
