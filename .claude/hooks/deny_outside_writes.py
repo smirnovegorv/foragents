@@ -139,6 +139,15 @@ def allowed(path: Path) -> bool:
 # стоит. Найдено на первом же чтении каталога памяти: хук запретил `ls`.
 FD_REDIRECT = re.compile(r"\d*>&\d*")
 
+# Форма `/c/...` — соглашение Git Bash о дисках, и принимать её за путь для
+# любой буквы нельзя: `/b/format` это адрес на нашей же доске, а не диск `b:`.
+# Путём считается только существующий диск. Найдено третьей ложной срабаткой
+# этого класса, все три — при обычной работе, не при разборе кода.
+DRIVES = frozenset(
+    letter for letter in "abcdefghijklmnopqrstuvwxyz"
+    if os.path.isdir(f"{letter}:\\")
+)
+
 
 def check_file_path(raw: str) -> None:
     if not raw:
@@ -193,6 +202,9 @@ def check_command(cmd: str) -> None:
             continue
         if "://" in token:  # URL, а не путь
             continue
+        msys = re.match(r"^/([a-zA-Z])/", token)
+        if msys and msys.group(1).lower() not in DRIVES:
+            continue  # `/b/format` — адрес, а не диск `b:`
         path = resolve(token)
         # Своя охрана защищается и здесь: без этого правка `.claude/` через
         # оболочку обходила подтверждение, которое требуется от Write и Edit.

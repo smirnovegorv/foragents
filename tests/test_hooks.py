@@ -80,6 +80,14 @@ CASES = [
     ("память чужого проекта", "deny",
      {"tool_name": "Write",
       "tool_input": {"file_path": str(MEMORY.parent.parent / "other" / "memory" / "x.md")}}),
+    # Третья ложная срабатка того же класса, все найдены в работе: форма
+    # `/x/...` — соглашение Git Bash о дисках, и для любой буквы она путём не
+    # является. `/b/format` — адрес на нашей же доске.
+    ("адрес доски рядом с записью", "allow",
+     {"tool_name": "Bash",
+      "tool_input": {"command": "echo 'сообщение в /b/format' >> docs/JOURNAL.md"}}),
+    ("несуществующий диск в пути", "allow",
+     {"tool_name": "Bash", "tool_input": {"command": "echo x > notes-/q/whatever.txt"}}),
     # Охрана обязана защищаться от всех путей, а не только от Write и Edit:
     # дверь рядом с охраной — то же, что отсутствие охраны.
     ("правка охраны через оболочку", "ask",
