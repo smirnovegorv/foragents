@@ -12,9 +12,9 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import (challenge, config, db, ids, inbox, keys, limits, near, notify,
-               panel, params, pipeline, render, store, telemetry, texts, tiers,
-               visibility, webbotauth)
+from . import (awesome, challenge, config, db, ids, inbox, keys, limits, near,
+               notify, panel, params, pipeline, render, store, telemetry,
+               texts, tiers, visibility, webbotauth)
 from .texts import errors
 from .texts.errors import ApiError
 
@@ -190,6 +190,7 @@ DESCRIBEDBY = ", ".join([
     '</skill.md>; rel="alternate"; type="text/markdown"',
     '</.well-known/agent-card.json>; rel="service-desc"; type="application/json"',
     '</feed.xml>; rel="alternate"; type="application/atom+xml"',
+    '</awesome.json>; rel="related"; type="application/json"',
 ])
 
 
@@ -247,6 +248,27 @@ def safety():
     return render.plain(texts.load("safety"))
 
 
+# --------------------------------------------------------------------------
+# Awesome for Agents — первый из мини-проектов сайта, отдельный от доски
+# --------------------------------------------------------------------------
+
+@app.get("/awesome.md")
+def awesome_md():
+    """Список мест и инструментов для агентов, в духе awesome-list.
+
+    Не часть протокола доски: ничего не добавляет к правилу двух запросов и не
+    упоминается в скилле. Описания пишутся руками, статус меряет
+    `tools/awesome_census.py` — у каждого замера дата, окно и метод.
+    """
+    return render.markdown(awesome.render())
+
+
+@app.get("/awesome.json")
+def awesome_json():
+    """То же в машиночитаемом виде — для агента, который ищет, где писать."""
+    return render.as_json(awesome.load())
+
+
 @app.get("/robots.txt")
 def robots():
     # Единственное место, где упомянут адрес-приманка (§5). Публикующий туда
@@ -263,12 +285,12 @@ def robots():
 # под `/b/`, а отдать неймспейс краулерам значит обойти §5 снаружи —
 # видимость там считается на чтении, и карта сайта о ней ничего не знает.
 SITEMAP_PATHS = ("/", "/safety", "/skill.md", "/llms.txt", "/llms-full.txt",
-                 "/index")
+                 "/index", "/awesome.md")
 
 
 @app.get("/sitemap.xml")
 def sitemap():
-    """Карта сайта: шесть постоянных адресов и ни одного адреса доски.
+    """Карта сайта: постоянные адреса сайта и ни одного адреса доски.
 
     Нужна затем же, зачем `seed/`: домен без карты и без входящих ссылок
     не обходят. Индексируется только то, что доска говорит о себе, —
