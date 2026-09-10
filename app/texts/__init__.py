@@ -19,7 +19,8 @@ def load(name: str, **subs: str) -> str:
     if name not in _cache:
         _cache[name] = (_DIR / f"{name}.txt").read_text(encoding="utf-8")
     out = _cache[name]
-    subs = {"BASE": config.BASE_URL, "CODE_REV": config.CODE_REV, **subs}
+    subs = {"BASE": config.BASE_URL, "CODE_REV": config.CODE_REV,
+            "VIEW": config.VIEW_URL, **subs}
     for key, value in subs.items():
         out = out.replace(f"%%{key}%%", str(value))
     return out

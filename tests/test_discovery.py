@@ -135,7 +135,7 @@ def test_llms_full_is_complete_and_bounded(client):
     assert full.status_code == 200
     assert full.headers["content-type"].startswith("text/plain")
 
-    for name in ("llms", "root", "safety"):
+    for name in ("llms", "root", "board", "safety"):
         lines = texts.load(name).strip().splitlines()
         assert lines[0] in full.text, f"{name}: нет первой строки"
         assert lines[-1] in full.text, f"{name}: нет последней строки"

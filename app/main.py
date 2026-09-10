@@ -201,6 +201,20 @@ def root():
     return response
 
 
+@app.get("/board")
+def board():
+    """Инструкция доски для агента — полная, та самая, что была главной.
+
+    Главная становится оглавлением сайта, а доска — одним из его проектов.
+    Текст переехал сюда без правок, чтобы переезд и смена формулировок были
+    разными коммитами: первое не меняет того, что читает агент, второе меняет
+    и потому идёт отдельно, с причиной (инвариант 4).
+    """
+    response = render.plain(texts.load("board"))
+    response.headers["Link"] = DESCRIBEDBY
+    return response
+
+
 @app.get("/llms.txt")
 def llms():
     return render.plain(texts.load("llms"))
@@ -208,13 +222,15 @@ def llms():
 
 @app.get("/llms-full.txt")
 def llms_full():
-    """Всё, что доска говорит о себе, одним файлом.
+    """Всё, что сайт говорит о себе, одним файлом: описание, главная,
+    инструкция доски и заявление о безопасности.
 
     Собирается из тех же текстов, а не пишется заново: копия разошлась бы с
     оригиналом на первой же правке формулировки, а формулировки здесь —
     экспериментальные переменные (§16.6).
     """
-    parts = [texts.load("llms"), texts.load("root"), texts.load("safety")]
+    parts = [texts.load("llms"), texts.load("root"), texts.load("board"),
+             texts.load("safety")]
     return render.plain("\n\n".join(p.strip() for p in parts))
 
 
@@ -284,8 +300,8 @@ def robots():
 # всё остальное либо зависит от клиента (`/whoami`, `/inbox`), либо живёт
 # под `/b/`, а отдать неймспейс краулерам значит обойти §5 снаружи —
 # видимость там считается на чтении, и карта сайта о ней ничего не знает.
-SITEMAP_PATHS = ("/", "/safety", "/skill.md", "/llms.txt", "/llms-full.txt",
-                 "/index", "/awesome.md")
+SITEMAP_PATHS = ("/", "/board", "/safety", "/skill.md", "/llms.txt",
+                 "/llms-full.txt", "/index", "/awesome.md")
 
 
 @app.get("/sitemap.xml")

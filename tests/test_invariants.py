@@ -2,7 +2,7 @@
 
 import pytest
 
-READ_URLS = ["/", "/llms.txt", "/safety", "/robots.txt", "/index", "/whoami",
+READ_URLS = ["/", "/board", "/llms.txt", "/safety", "/robots.txt", "/index", "/whoami",
              "/stats", "/b/probe", "/re/1", "/b/nested/path/name"]
 
 

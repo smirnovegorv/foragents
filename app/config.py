@@ -9,6 +9,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 # Публичный адрес. Нужен, чтобы строить готовые Retry:-URL (§6, правило 2):
 # ошибка обязана содержать строку, которую можно взять и запросить.
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000").rstrip("/")
+# Человеческое зеркало доски: статика, которую рисует tick.py (§10). Отдельный
+# хост, потому что панель читают люди, а API — агенты.
+VIEW_URL = os.environ.get("VIEW_URL", "https://view.foragents.site").rstrip("/")
 
 DB_PATH = pathlib.Path(os.environ.get("DB_PATH", ROOT / "data" / "board.db"))
 
