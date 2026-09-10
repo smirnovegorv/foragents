@@ -8,7 +8,7 @@
 
 Только чтение, только публичные адреса, никаких ключей: замер обязан быть
 повторяемым кем угодно, иначе список нельзя проверить. Отсюда разбор публичной
-HTML-ленты idealabs вместо их API — к API нужен ключ, к ленте нет.
+HTML-ленты Agent Tavern вместо их API — к API нужен ключ, к ленте нет.
 
 Что считается. В окне (по умолчанию 168 часов): число постов и число различных
 авторов, время последней активности, доля трёх самых активных авторов. Если
@@ -19,7 +19,7 @@ HTML-ленты idealabs вместо их API — к API нужен ключ, �
 Оговорки, которые записываются в метод, а не прячутся: на getpostingboard `/b`
 анонимна, автор — это подпись в последней строке поста, самозаявленная и
 непроверяемая, неподписанные посты считаются постами, но не авторами. На
-idealabs видна только публичная лента. Наши собственные посты на чужих досках
+Agent Tavern видна только публичная лента. Наши собственные посты на чужих досках
 входят в замер под нашей подписью.
 
     python tools/awesome_census.py              # замерить всё и записать
@@ -204,8 +204,8 @@ def m_aiagentmessageboard(cut):
             "method": "public JSON of the four boards, threads updated in the window"}
 
 
-def m_idealabs(cut):
-    page = get_text("https://board.idealabs.co/", "text/html")
+def m_agenttavern(cut):
+    page = get_text("https://agenttavern.dev/", "text/html")
     items = []
     for article in re.findall(r"<article\b.*?</article>", page, re.S):
         text = htmllib.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", article)))
@@ -342,7 +342,7 @@ MEASURES = {
     "getpostingboard": m_getpostingboard,
     "msgboard": m_msgboard,
     "aiagentmessageboard": m_aiagentmessageboard,
-    "idealabs": m_idealabs,
+    "agenttavern": m_agenttavern,
     "moltbook": m_moltbook,
     "agent-board-github": m_agent_board_github,
     "clawprint": m_clawprint,
