@@ -51,7 +51,10 @@ RECEIPT_REQUIRED_02 = ("FROM", "ROLE")
 # делать с вердиктом. Заполняет только получатель — в находке этих меток нет,
 # и находка с ними падает на unknown_label. Обязателен, только если действие
 # выходит за «оставить у себя» и «сказать оператору».
-ACT_NEEDS = ("AUDIENCE", "AUTHORITY", "REVERSIBILITY")
+# AFFECTED обязателен вместе с остальными (Кар, seq 10858): действие без
+# носителя последствий — то, о чём он предупреждал; UNKNOWN — честное
+# значение, пропуск — нет.
+ACT_NEEDS = ("AUDIENCE", "AUTHORITY", "REVERSIBILITY", "AFFECTED")
 ACT_OUTWARD = ("scoped-relay", "public-relay", "remedy-proposal")
 
 REQUIRED = {
@@ -402,7 +405,10 @@ def _validate_receipt(record: Record) -> list[Problem]:
         problems.append(Problem(
             "FINDING", "illegal_pair",
             f"RUN NOT_STARTED allows only UNASSESSED or UNSAFE, not {finding}"))
-    if run == "INVALID" and finding not in (None, "INCONCLUSIVE", "UNASSESSED"):
+    # Таблица спецификации: INVALID только с INCONCLUSIVE. UNASSESSED здесь
+    # был лишним — «оценки не было» относится к NOT_STARTED, а прогон,
+    # обесцененный контролем, это INCONCLUSIVE (ELLIS, seq 10859).
+    if run == "INVALID" and finding not in (None, "INCONCLUSIVE"):
         problems.append(Problem(
             "FINDING", "illegal_pair",
             "RUN INVALID (a failed control, a wrong environment) gives "

@@ -268,6 +268,11 @@ def _receipt(**over):
     ({"FINDING": "NOT_OBSERVED", "ENV": None}, False),
     ({"FINDING": "REPRODUCED", "RUN": "INCOMPLETE"}, False),
     ({"RUN": "INVALID · control failed", "FINDING": "INCONCLUSIVE"}, True),
+    # ELLIS (seq 10859): таблица разрешает INVALID только с INCONCLUSIVE;
+    # код пропускал и UNASSESSED. Codex (seq 10865) воспроизвёл: при
+    # INVALID проходили ровно UNASSESSED и INCONCLUSIVE.
+    ({"RUN": "INVALID · control failed", "FINDING": "UNASSESSED",
+      "REOPEN_WHEN": "a corrected control becomes available"}, False),
     ({"RUN": "INVALID · control failed", "FINDING": "NOT_OBSERVED"}, False),
     ({"RUN": "NOT_STARTED", "FINDING": "UNASSESSED"}, True),
     ({"RUN": "NOT_STARTED", "FINDING": "UNSAFE · needs prod"}, True),
@@ -331,7 +336,12 @@ def test_an_act_beyond_your_own_side_names_audience_authority_reversibility():
     for act in ("scoped-relay", "public-relay", "remedy-proposal"):
         result = _check(_receipt(ACT=act))
         assert {p.field for p in result.problems} == {
-            "AUDIENCE", "AUTHORITY", "REVERSIBILITY"}, act
+            "AUDIENCE", "AUTHORITY", "REVERSIBILITY", "AFFECTED"}, act
+        # Кар (seq 10858): без AFFECTED действие описано без носителя
+        # последствий; если затронутых не назвать, честно UNKNOWN.
+        unknown = _receipt(ACT=act, AUDIENCE="x", AUTHORITY="UNKNOWN",
+                           REVERSIBILITY="reversible", AFFECTED="UNKNOWN")
+        assert _check(unknown).ok, _check(unknown).problems
         full = _receipt(ACT=act, AUDIENCE="the dependants of the library",
                         AUTHORITY="UNKNOWN", REVERSIBILITY="reversible",
                         AFFECTED="downstream users; contest via their tracker")
