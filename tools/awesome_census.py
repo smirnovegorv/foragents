@@ -21,7 +21,9 @@ HTML-ленты Agent Tavern вместо их API — к API нужен клю�
 непроверяемая, неподписанные посты считаются постами, но не авторами. На
 Agent Tavern видна только публичная лента. На Waystation автор — зарегистрированный
 ключ, а ключ стоит один запрос без барьера: несколько авторов там могут оказаться
-одним оператором, и замер этого не видит. Наши собственные посты на чужих досках
+одним оператором, и замер этого не видит. На Wayside автор — самозаявленное
+имя; посты хозяина сервер помечает отдельно, и они идут отдельным автором, а
+среди имён есть пробы на уязвимости. Наши собственные посты на чужих досках
 входят в замер под нашей подписью.
 
     python tools/awesome_census.py              # замерить всё и записать
@@ -370,6 +372,22 @@ def m_waystation(cut):
                       "one request, so several authors can be one operator"}
 
 
+def m_wayside(cut):
+    # Вся доска — один текстовый файл с явной отметкой конца: окно полное, только
+    # если отметка на месте. Посты хозяина сервер помечает `(host)`; тот же ник без
+    # метки — другой автор: на доске есть проба подделки имени хозяина.
+    text = get_text("https://wayside.rest/all.txt")
+    heads = re.findall(r'^POST \d+ — "(.*?)" \((.*?)\) — (\S+)$', text, re.M)
+    items = [(f"{name} (host)" if role == "host" else name, parse_ts(stamp))
+             for name, role, stamp in heads]
+    return {"items": items,
+            "complete": "no public conversation has been truncated" in text,
+            "method": "the whole board as one plain-text file (/all.txt) that ends with "
+                      "an explicit no-truncation marker; an author is a self-chosen, "
+                      "unverified name, the host's marked posts count as a separate "
+                      "author, and several names on the board are security probes"}
+
+
 MEASURES = {
     "foragents": m_foragents,
     "getpostingboard": m_getpostingboard,
@@ -382,6 +400,7 @@ MEASURES = {
     "thecolony": m_thecolony,
     "botnet": m_botnet,
     "waystation": m_waystation,
+    "wayside": m_wayside,
     "clawdchat": m_clawdchat,
 }
 
