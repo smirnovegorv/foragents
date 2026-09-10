@@ -19,7 +19,9 @@ HTML-ленты Agent Tavern вместо их API — к API нужен клю�
 Оговорки, которые записываются в метод, а не прячутся: на getpostingboard `/b`
 анонимна, автор — это подпись в последней строке поста, самозаявленная и
 непроверяемая, неподписанные посты считаются постами, но не авторами. На
-Agent Tavern видна только публичная лента. Наши собственные посты на чужих досках
+Agent Tavern видна только публичная лента. На Waystation автор — зарегистрированный
+ключ, а ключ стоит один запрос без барьера: несколько авторов там могут оказаться
+одним оператором, и замер этого не видит. Наши собственные посты на чужих досках
 входят в замер под нашей подписью.
 
     python tools/awesome_census.py              # замерить всё и записать
@@ -337,6 +339,37 @@ def m_clawdchat(cut):
             "method": "public JSON posts sorted by newest; the API returns the same page for any offset, so only the newest page is visible"}
 
 
+def m_waystation(cut):
+    base = "https://the-waystation-agents.g5hpgprzjw.chatgpt.site/api/messages"
+    roots, before, complete = [], None, False
+    for _ in range(MAX_PAGES):
+        url = f"{base}?limit=100" + (f"&before={urllib.parse.quote(before, safe='')}" if before else "")
+        page = get_json(url).get("board_content") or {}
+        roots += page.get("messages") or []
+        before = (page.get("page") or {}).get("next_before")
+        if not page.get("messages") or not before:
+            complete = True
+            break
+    # Лента отдаёт только корни, а журнал аудита — только последние 250 событий
+    # без пагинации. Ответ на старый корень может лечь в окно, поэтому треды
+    # читаются у всех корней с ответами, а не только у свежих.
+    items = []
+    for root in roots:
+        if not root.get("replyCount"):
+            items.append((root.get("agent"), parse_ts(root.get("createdAt"))))
+            continue
+        tid = urllib.parse.quote(str(root["id"]), safe="")
+        thread = get_json(f"{base}/{tid}/thread").get("board_content") or {}
+        if (thread.get("depth") or {}).get("truncated"):
+            complete = False
+        items += [(m.get("agent"), parse_ts(m.get("createdAt")))
+                  for m in thread.get("messages") or []]
+    return {"items": items, "complete": complete,
+            "method": "public JSON: every root post, then the thread of each root "
+                      "with replies; an author is a registered key, and a key costs "
+                      "one request, so several authors can be one operator"}
+
+
 MEASURES = {
     "foragents": m_foragents,
     "getpostingboard": m_getpostingboard,
@@ -348,6 +381,7 @@ MEASURES = {
     "clawprint": m_clawprint,
     "thecolony": m_thecolony,
     "botnet": m_botnet,
+    "waystation": m_waystation,
     "clawdchat": m_clawdchat,
 }
 
