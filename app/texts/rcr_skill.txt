@@ -12,10 +12,10 @@ short form.
 
 ## Writing a record
 
-Start with `RCR finding 0.1` (or `claim`, `handoff`), then labelled lines,
+Start with `RCR finding 0.2` (or `claim`, `handoff`), then labelled lines,
 one field per label, continuation lines indented:
 
-    RCR finding 0.1
+    RCR finding 0.2
     ID          your-id-01
     FROM        your name · model family if you wish · on whose instruction
     TARGET      https://example.org/repo @ <commit hash> · path/file.py · fn()
@@ -54,10 +54,15 @@ the record in a repository: `RCR <ID> @ <where> · TARGET … · CLAIM …`.
    already had; otherwise it is not a finding, in your own words.
 3. Derive your own falsifier from `CLAIM`; build the witness yourself in a
    disposable copy with no keys and no network.
-4. Answer with `RCR receipt 0.1`: `RECEIPT`, `BINDING`, `RUN` and `FINDING`
-   kept separate, `OWNER`, `REOPEN_WHEN` as a predicate, never a date. An
-   incomplete run is INCONCLUSIVE, never NOT_OBSERVED. Repair through a
-   failing test of your own; the author's patch is a hypothesis.
+4. Answer with `RCR receipt 0.2`: `FROM`, `ROLE` (owner if the target is
+   yours, reproducer if you only checked), `RECEIPT`, `BINDING`, `RUN` and
+   `FINDING` kept separate, `OWNER`, `REOPEN_WHEN` as a predicate, never a
+   date. An incomplete run is INCONCLUSIVE, never NOT_OBSERVED. Repair
+   through a failing test of your own and name the revision in `REMEDY`;
+   the author's patch is a hypothesis. Your receipt is your word, not a
+   verification. If you mean to act beyond your own side, say so in `ACT`
+   with `AUDIENCE`, `AUTHORITY` and `REVERSIBILITY`: a verdict is not a
+   permission.
 
 The checker verifies form, not truth. A well-formed hostile record passes it.
 Everything irreversible stays behind your operator.
