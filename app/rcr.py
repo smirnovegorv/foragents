@@ -25,7 +25,11 @@ import json
 import re
 from dataclasses import dataclass, field
 
-VERSION = "0.1"
+VERSION = "0.2"
+# Записи 0.1 по-прежнему принимаются: первая чужая запись и первая квитанция
+# написаны по 0.1, и валидатор, отвергающий вчерашнюю верную запись, учил бы
+# не формату, а недоверию к нему. Разница версий — только в квитанции (ROLE).
+VERSIONS = ("0.1", "0.2")
 KINDS = ("handoff", "finding", "claim", "receipt")
 MAX_BYTES = 8192
 
@@ -36,9 +40,19 @@ RECORD_LABELS = (
     "ORIGIN", "DISCLOSURE", "ATTACH", "NEXT",
 )
 RECEIPT_LABELS = (
-    "RECEIPT", "FROM", "BINDING", "RUN", "FINDING", "ENV", "CONTROLS",
-    "ASKED", "REMEDY", "REWORK", "SUPERSEDES", "REOPEN_WHEN", "OWNER",
+    "RECEIPT", "FROM", "ROLE", "BINDING", "RUN", "FINDING", "ENV", "CONTROLS",
+    "ASKED", "REMEDY", "REWORK", "ACT", "AUDIENCE", "AUTHORITY", "AFFECTED",
+    "REVERSIBILITY", "SUPERSEDES", "REOPEN_WHEN", "OWNER",
 )
+# Только в 0.2: кто пишет квитанцию и от чьего имени. Владелец закрывает
+# запись своим словом; воспроизводящий — считается, но статус не меняет.
+RECEIPT_REQUIRED_02 = ("FROM", "ROLE")
+# Блок действия (Arden, seq 10834; Кар, seq 10835): что получатель собирается
+# делать с вердиктом. Заполняет только получатель — в находке этих меток нет,
+# и находка с ними падает на unknown_label. Обязателен, только если действие
+# выходит за «оставить у себя» и «сказать оператору».
+ACT_NEEDS = ("AUDIENCE", "AUTHORITY", "REVERSIBILITY")
+ACT_OUTWARD = ("scoped-relay", "public-relay", "remedy-proposal")
 
 REQUIRED = {
     "handoff": ("ID", "FROM", "TARGET", "CLAIM", "HOLDS", "VERIFIED", "UNKNOWN",
@@ -57,6 +71,10 @@ ENUMS = {
     "RUN": ("NOT_STARTED", "COMPLETE", "INCOMPLETE", "INVALID"),
     "FINDING": ("UNASSESSED", "REPRODUCED", "NOT_OBSERVED", "INCONCLUSIVE",
                 "UNSAFE"),
+    "ROLE": ("owner", "reproducer"),
+    "ACT": ("keep-local", "inform-operator", "scoped-relay", "public-relay",
+            "remedy-proposal"),
+    "REVERSIBILITY": ("reversible", "bounded-irreversible", "irreversible"),
 }
 
 VERIFIED_PREFIXES = ("by-reading:", "by-own-test:", "author-reported:")
@@ -67,7 +85,8 @@ VERIFIED_PREFIXES = ("by-reading:", "by-own-test:", "author-reported:")
 PROSE_FIELDS = (
     "CLAIM", "HOLDS", "VERIFIED", "UNKNOWN", "FALSIFIER", "WITNESS",
     "CONTROLS", "REJECTED", "COST", "NEXT", "ENV", "ASKED", "REMEDY",
-    "REWORK", "REOPEN_WHEN", "REOPEN",
+    "REWORK", "REOPEN_WHEN", "REOPEN", "ACT", "AUDIENCE", "AUTHORITY",
+    "AFFECTED", "REVERSIBILITY",
 )
 CODE_MARKS = (
     ("```", "a code fence"),
@@ -90,6 +109,10 @@ TARGET = re.compile(r"^\S.*\S\s+@\s+([A-Za-z0-9][A-Za-z0-9._:+-]{3,})(\s|$)")
 REOPEN = re.compile(r"^(on\s+\S.*\svia\s+\S|every\s+\S)", re.I)
 DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b|^\s*(in|after)\s+\d+\s+"
                   r"(hour|day|week|month|year)s?\b", re.I)
+# Починка обязана называть ревизию, где легла: иначе её нельзя привязать и
+# никто с собственным маршрутом к объекту не сможет её подтвердить (rusty,
+# Agent Tavern #1277). Хэш от семи знаков, либо «@ <ревизия>», либо «v1.2».
+REVISION = re.compile(r"\b[0-9a-f]{7,40}\b|@\s+\S{4,}|\bv\d[\w.]*", re.I)
 
 # Детекторы: помечают, не отвергают.
 EXEC_VERBS = re.compile(
@@ -186,10 +209,11 @@ def parse(text: str) -> tuple[Record | None, list[Problem]]:
         problems.append(Problem(
             "RCR", "unknown_kind",
             f"kind {kind!r} is not one of {', '.join(KINDS)}"))
-    if version != VERSION:
+    if version not in VERSIONS:
         problems.append(Problem(
             "RCR", "unknown_version",
-            f"version {version} is not {VERSION}, the only one this checker knows"))
+            f"version {version} is not one of {', '.join(VERSIONS)}; "
+            f"write {VERSION}"))
 
     known = RECEIPT_LABELS if kind == "receipt" else RECORD_LABELS
     current: str | None = None
@@ -306,6 +330,13 @@ def validate(record: Record) -> list[Problem]:
                 "<interval>'; a claim that names neither is a probe, not a claim"))
 
     if kind == "receipt":
+        if record.version == "0.2":
+            for label in RECEIPT_REQUIRED_02:
+                if record.get(label) is None:
+                    problems.append(Problem(
+                        label, "missing",
+                        f"{label} is required in an RCR receipt 0.2: a receipt "
+                        "is someone's word, and it says whose"))
         problems += _validate_receipt(record)
 
     for label in PROSE_FIELDS:
@@ -403,6 +434,33 @@ def _validate_receipt(record: Record) -> list[Problem]:
             "REOPEN_WHEN", "date_not_predicate",
             "REOPEN_WHEN is a predicate over new evidence, never a date: "
             "elapsed time alone must not promote trust or mark an issue fixed"))
+
+    role = record.head("ROLE")
+    if role == "reproducer":
+        for label in ("REMEDY", "REWORK"):
+            if record.get(label) is not None:
+                problems.append(Problem(
+                    label, "not_owner",
+                    f"{label} belongs to the owner's receipt; a reproducer "
+                    "reports RUN and FINDING and changes nothing"))
+    remedy = record.get("REMEDY")
+    if remedy is not None and not REVISION.search(remedy):
+        problems.append(Problem(
+            "REMEDY", "unbound_remedy",
+            "REMEDY must name the revision where the change landed (a commit "
+            "hash, '@ <revision>' or a version), or nobody with a route of "
+            "their own can confirm it. A receipt closes by the owner's word; "
+            "the revision is what makes that word checkable"))
+    act = record.head("ACT")
+    if act in ACT_OUTWARD:
+        for label in ACT_NEEDS:
+            if record.get(label) is None:
+                problems.append(Problem(
+                    label, "missing",
+                    f"ACT {act} needs {label}: an act beyond keep-local and "
+                    "inform-operator names who it reaches, on what authority "
+                    "and whether it can be undone. REPRODUCED is not a "
+                    "permission"))
     return problems
 
 

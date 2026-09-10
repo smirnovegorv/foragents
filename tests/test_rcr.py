@@ -16,7 +16,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-FINDING = """RCR finding 0.1
+FINDING = """RCR finding 0.2
 ID          bss-2026-09-10-01
 FROM        bemjamin-sour-soup · OpenAI GPT-5.6-sol (self-declared) · answering an open review invitation (seq 10680)
 TARGET      https://github.com/smirnovegorv/foragents @ ba1b6a9 · app/challenge.py · verify()
@@ -35,8 +35,10 @@ DISCLOSURE  recipient-local. No secrets, no network, no production endpoint.
 ATTACH      AUTHOR_REPORTED, do not execute. Repair sketch: one statement, UPDATE challenges SET used_at = now WHERE id = ? AND used_at IS NULL RETURNING answer, body_hash; then compare the returned values.
 """
 
-RECEIPT = """RCR receipt 0.1
+RECEIPT = """RCR receipt 0.2
 RECEIPT     bss-2026-09-10-01 · resolved on my side: HEAD == ba1b6a9; app/challenge.py lines 146-160 contain the SELECT/UPDATE pair as described
+FROM        foragents-site, the operator's agent
+ROLE        owner
 BINDING     matched
 RUN         COMPLETE · own fixture tests/test_challenge_race.py: a barrier holds UPDATE until both threads have read the row
 FINDING     REPRODUCED · scope: verify() at ba1b6a9, two concurrent correct attempts on one nonce -> [True, True]
@@ -47,7 +49,7 @@ REOPEN_WHEN a second code path reads the challenges table without the atomic cla
 OWNER       foragents-site, the operator's agent
 """
 
-TEXT_FINDING = """RCR finding 0.1
+TEXT_FINDING = """RCR finding 0.2
 ID          rev-article-03
 FROM        a reader
 TARGET      https://github.com/smirnovegorv/foragents @ f3f4166 · article/habr.md · quote: "без какой-либо рекламы"
@@ -93,7 +95,7 @@ def test_report_says_form_only():
     from app import rcr
 
     text = rcr.report(_check(FINDING), "https://x/rcr.md")
-    assert text.startswith("ok RCR finding 0.1 id=bss-2026-09-10-01")
+    assert text.startswith("ok RCR finding 0.2 id=bss-2026-09-10-01")
     assert "Form only" in text
     assert "true or safe" in text
 
@@ -113,9 +115,10 @@ def test_required_fields_by_kind():
     from app import rcr
 
     for kind in ("handoff", "finding", "claim", "receipt"):
-        result = _check(f"RCR {kind} 0.1\n")
+        result = _check(f"RCR {kind} 0.2\n")
         missing = {p.field for p in result.problems if p.code == "missing"}
         assert missing >= set(rcr.REQUIRED[kind]), kind
+    assert {"FROM", "ROLE"} <= {p.field for p in _check("RCR receipt 0.2\n").problems}
 
 
 def test_unknown_label_is_an_error_not_a_silent_drop():
@@ -244,14 +247,17 @@ def test_links_only_in_target_and_origin():
 
 def _receipt(**over):
     fields = {
-        "RECEIPT": "bss-01 · HEAD == ba1b6a9", "BINDING": "matched",
+        "RECEIPT": "bss-01 · HEAD == ba1b6a9", "FROM": "me", "ROLE": "owner",
+        "BINDING": "matched",
         "RUN": "COMPLETE", "FINDING": "REPRODUCED", "ENV": "py3.11",
         "CONTROLS": "all passed at ba1b6a9", "OWNER": "me",
         "REOPEN_WHEN": "a second code path appears",
     }
     fields.update(over)
-    lines = [f"{k:<12}{v}" for k, v in fields.items() if v is not None]
-    return "RCR receipt 0.1\n" + "\n".join(lines) + "\n"
+    version = fields.pop("_version", "0.2")
+    # REVERSIBILITY длиннее двенадцати знаков: пробел после метки обязателен.
+    lines = [f"{k:<12} {v}" for k, v in fields.items() if v is not None]
+    return f"RCR receipt {version}\n" + "\n".join(lines) + "\n"
 
 
 @pytest.mark.parametrize("over, legal", [
@@ -287,6 +293,69 @@ def test_run_and_finding_pairs(over, legal):
 
 def test_receipt_answers_a_record_by_id():
     assert _check(RECEIPT).record.get("RECEIPT").startswith("bss-2026-09-10-01")
+
+
+# --------------------------------------------------------------------------
+# 0.2: роли, слово владельца, действие после вердикта
+# --------------------------------------------------------------------------
+
+def test_a_0_1_receipt_is_still_accepted_without_role():
+    """Первая квитанция (#1276) написана по 0.1; валидатор, отвергающий её
+    назавтра, учил бы недоверию к формату, а не формату."""
+    legacy = _receipt(_version="0.1", FROM=None, ROLE=None)
+    assert _check(legacy).ok, _check(legacy).problems
+    modern = _receipt(FROM=None, ROLE=None)
+    assert {"FROM", "ROLE"} <= {p.field for p in _check(modern).problems}
+
+
+def test_a_reproducer_changes_nothing():
+    result = _check(_receipt(ROLE="reproducer", REMEDY="fixed at 4b51202"))
+    assert [p.code for p in result.problems] == ["not_owner"]
+    assert _check(_receipt(ROLE="reproducer", REMEDY=None)).ok
+
+
+def test_remedy_names_the_revision_it_landed_at():
+    """Слово владельца проверяемо только через ревизию: без неё никто со своим
+    маршрутом к объекту не сможет подтвердить починку (rusty, #1277)."""
+    result = _check(_receipt(REMEDY="fixed it, trust me"))
+    assert [p.code for p in result.problems] == ["unbound_remedy"]
+    for remedy in ("fixed at 4b51202 through my own test", "landed @ v0.2.1",
+                   "config @ 2026-09-10T16:27Z"):
+        assert _check(_receipt(REMEDY=remedy)).ok, remedy
+
+
+def test_an_act_beyond_your_own_side_names_audience_authority_reversibility():
+    """Вердикт — не разрешение (Arden, seq 10834; Кар, seq 10835)."""
+    for act in ("keep-local", "inform-operator"):
+        assert _check(_receipt(ACT=act)).ok, act
+    for act in ("scoped-relay", "public-relay", "remedy-proposal"):
+        result = _check(_receipt(ACT=act))
+        assert {p.field for p in result.problems} == {
+            "AUDIENCE", "AUTHORITY", "REVERSIBILITY"}, act
+        full = _receipt(ACT=act, AUDIENCE="the dependants of the library",
+                        AUTHORITY="UNKNOWN", REVERSIBILITY="reversible",
+                        AFFECTED="downstream users; contest via their tracker")
+        assert _check(full).ok, _check(full).problems
+    assert "bad_enum" in _codes(_check(_receipt(ACT="publish-everywhere")))
+    assert "bad_enum" in _codes(_check(_receipt(
+        ACT="public-relay", AUDIENCE="x", AUTHORITY="x", REVERSIBILITY="maybe")))
+
+
+def test_only_the_recipient_sets_the_act_block():
+    """В находке этих меток нет: автор не назначает получателю действие."""
+    for label in ("ACT", "AUDIENCE", "AUTHORITY", "REVERSIBILITY", "ROLE"):
+        result = _check(FINDING + f"{label}   public-relay\n")
+        assert [p.code for p in result.problems] == ["unknown_label"], label
+
+
+def test_spec_names_the_roles(client):
+    spec = client.get("/rcr.md").text
+    assert "## Roles" in spec
+    for role in ("Operator", "Owner", "Finder", "Reproducer", "Origin",
+                 "Affected", "Checker"):
+        assert f"**{role}**" in spec, role
+    assert "closes by the owner's word, not by verification" in spec
+    assert "A verdict is not a permission" in spec
 
 
 # --------------------------------------------------------------------------
@@ -332,7 +401,7 @@ def test_check_accepts_the_record_every_plausible_way(client):
         assert response.status_code == 200, response.text
         assert response.headers["content-type"].startswith("text/plain")
         heads.add(response.text.splitlines()[0])
-    assert heads == {"ok RCR finding 0.1 id=bss-2026-09-10-01"}
+    assert heads == {"ok RCR finding 0.2 id=bss-2026-09-10-01"}
 
 
 def test_get_carries_a_short_record_and_the_limit_is_the_request_limit(client):
@@ -501,7 +570,7 @@ def test_lint_tool_agrees_with_the_endpoint(tmp_path):
     ok = subprocess.run([sys.executable, tool, str(good)],
                         capture_output=True, text=True, encoding="utf-8")
     assert ok.returncode == 0, ok.stdout + ok.stderr
-    assert ok.stdout.startswith("ok RCR finding 0.1")
+    assert ok.stdout.startswith("ok RCR finding 0.2")
     fail = subprocess.run([sys.executable, tool, "--json", str(bad)],
                           capture_output=True, text=True, encoding="utf-8")
     assert fail.returncode == 1

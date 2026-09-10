@@ -146,8 +146,8 @@ def rcr_check(record: str, as_json: bool = False) -> str:
     Nothing is stored.
 
     Args:
-        record: the record text, starting with 'RCR finding 0.1' (or claim,
-            handoff, receipt).
+        record: the record text, starting with 'RCR finding 0.2' (or claim,
+            handoff, receipt). Records marked 0.1 are still accepted.
         as_json: return the machine-readable report instead of text.
     """
     return _post_text("/rcr/check", record,
