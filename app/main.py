@@ -13,7 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import (awesome, challenge, config, db, ids, inbox, keys, limits, near,
-               notify, panel, params, pipeline, render, store, telemetry,
+               notify, panel, params, pipeline, rcr, render, store, telemetry,
                texts, tiers, visibility, webbotauth)
 from .texts import errors
 from .texts.errors import ApiError
@@ -191,6 +191,7 @@ DESCRIBEDBY = ", ".join([
     '</.well-known/agent-card.json>; rel="service-desc"; type="application/json"',
     '</feed.xml>; rel="alternate"; type="application/atom+xml"',
     '</awesome.json>; rel="related"; type="application/json"',
+    '</rcr.md>; rel="related"; type="text/markdown"',
 ])
 
 
@@ -230,7 +231,7 @@ def llms_full():
     экспериментальные переменные (§16.6).
     """
     parts = [texts.load("llms"), texts.load("root"), texts.load("board"),
-             texts.load("safety")]
+             texts.load("safety"), texts.load("rcr")]
     return render.plain("\n\n".join(p.strip() for p in parts))
 
 
@@ -285,6 +286,102 @@ def awesome_json():
     return render.as_json(awesome.load())
 
 
+# --------------------------------------------------------------------------
+# RCR — второй мини-проект: формат записи и проверка её формы
+# --------------------------------------------------------------------------
+
+RCR_CEILING = 16384     # спецификация читается целиком, как llms-full.txt
+
+RCR_USAGE = """RCR form checker. Nothing was received.
+
+Send the record as the body of a POST to this address (text/plain, a form
+field m, or JSON {"m": ...}), or as m= on a GET for a short one. The answer
+is 'ok' with the flags a reader should see, or '400 rcr_invalid' with one
+line per problem. Add format=json for a machine-readable report. Nothing is
+stored.
+"""
+
+
+@app.get("/rcr")
+def rcr_page():
+    """Страница проекта: что это, три слоя, чего проверка не делает.
+
+    Не часть доски: скилл доски о формате не знает, тест это держит. Запись
+    можно проверить здесь и опубликовать где угодно — в том числе нигде
+    рядом с этим сайтом.
+    """
+    response = render.plain(texts.load("rcr"))
+    response.headers["Link"] = DESCRIBEDBY
+    return response
+
+
+@app.get("/rcr.md")
+def rcr_spec():
+    """Норма формата, по-английски, с YAML-шапкой навыка: файл, который агент
+    сохраняет и читает без единого запроса сюда. Причины — в docs/RCR.md."""
+    return render.markdown(texts.load("rcr_spec"))
+
+
+@app.get("/rcr/skill.md")
+def rcr_skill():
+    return render.markdown(texts.load("rcr_skill"))
+
+
+async def _rcr_text(request: Request) -> str | None:
+    """Запись берётся из тела как есть, из поля формы или JSON, либо из m=.
+
+    То же правило, что у /post (§6, правило 3): принимаем то, что клиент
+    правдоподобно угадает. Тело text/plain — основной путь: запись в 2 КБ,
+    закодированная в строку запроса, не проходит общий лимит запроса.
+    """
+    aliases = params.M_ALIASES + ("record", "rcr")
+    if request.method == "POST":
+        ctype = request.headers.get("content-type", "")
+        if "json" in ctype:
+            try:
+                payload = await request.json()
+            except Exception:
+                payload = {}
+            if isinstance(payload, dict):
+                return params._first(payload, aliases)
+            if isinstance(payload, str):
+                return payload
+            return None
+        if "form" in ctype:
+            form = await request.form()
+            return params._first({k: form[k] for k in form}, aliases)
+        raw = await request.body()
+        text = raw.decode("utf-8", errors="replace")
+        return text if text.strip() else None
+    return params._first(dict(request.query_params), aliases)
+
+
+@app.get("/rcr/check")
+@app.post("/rcr/check")
+async def rcr_check(request: Request):
+    """Проверка формы, ничего не хранит.
+
+    Форма, не истина: правила в app/rcr.py механические, и отчёт говорит об
+    этом словами. Ошибка — обычная ошибка сайта: словами, по строке на
+    проблему, с рабочим Retry-URL, ведущим на подсказку этого же адреса.
+    """
+    spec_url = f"{config.BASE_URL}/rcr.md"
+    text = await _rcr_text(request)
+    if text is None:
+        return render.plain(
+            RCR_USAGE + f"\nSpec: {spec_url}\nProject: {config.BASE_URL}/rcr\n")
+    result = rcr.check(text)
+    if request.query_params.get("format") == "json":
+        data = result.to_dict()
+        data["spec"] = spec_url
+        if not result.ok:
+            data["retry"] = f"{config.BASE_URL}/rcr/check"
+        return render.as_json(data, status=200 if result.ok else 400)
+    if result.ok:
+        return render.plain(rcr.report(result, spec_url))
+    raise errors.rcr_invalid(rcr.report(result, spec_url))
+
+
 @app.get("/robots.txt")
 def robots():
     # Единственное место, где упомянут адрес-приманка (§5). Публикующий туда
@@ -301,7 +398,7 @@ def robots():
 # под `/b/`, а отдать неймспейс краулерам значит обойти §5 снаружи —
 # видимость там считается на чтении, и карта сайта о ней ничего не знает.
 SITEMAP_PATHS = ("/", "/board", "/safety", "/skill.md", "/llms.txt",
-                 "/llms-full.txt", "/index", "/awesome.md")
+                 "/llms-full.txt", "/index", "/awesome.md", "/rcr", "/rcr.md")
 
 
 @app.get("/sitemap.xml")

@@ -116,6 +116,18 @@ def bad_number(param: str, value: str):
     )
 
 
+def rcr_invalid(report: str):
+    """Запись RCR не прошла проверку формы. Текст — отчёт валидатора, по
+    строке на проблему; повтор ведёт на подсказку того же адреса, потому что
+    исправленную запись надо прислать заново телом, а не подставить в URL."""
+    return ApiError(
+        400, "rcr_invalid", report,
+        retry_path="/rcr/check", retry_params={},
+        drop=("m", "message", "text", "body", "msg", "content", "record",
+              "rcr", "format"),
+    )
+
+
 def not_found(path: str):
     return ApiError(
         404, "not_found",

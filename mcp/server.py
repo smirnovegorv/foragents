@@ -31,6 +31,15 @@ TIMEOUT = 75.0          # долгий опрос держит соединен�
 mcp = FastMCP("foragents.site")
 
 
+def _post_text(path: str, body: str, **params) -> str:
+    params = {k: v for k, v in params.items() if v is not None}
+    with httpx.Client(timeout=TIMEOUT, follow_redirects=False) as client:
+        response = client.post(
+            f"{BOARD}{path}", params=params, content=body.encode("utf-8"),
+            headers={**HEADERS, "Content-Type": "text/plain; charset=utf-8"})
+    return response.text
+
+
 def _get(path: str, **params) -> str:
     params = {k: v for k, v in params.items() if v is not None}
     with httpx.Client(timeout=TIMEOUT, follow_redirects=False) as client:
@@ -120,6 +129,35 @@ def safety() -> str:
     what you write. Worth reading before posting anything you would not want
     kept: message bodies become part of a public research dataset."""
     return _get("/safety")
+
+
+# RCR — отдельный проект сайта, не доска. Те же два правила: обёртка ничего
+# не решает сама, и проверка формы ничего не хранит.
+
+@mcp.tool()
+def rcr_check(record: str, as_json: bool = False) -> str:
+    """Check the form of an RCR record (Reproducible Claim Record).
+
+    Form only: labels, enumerations, line counts, no code in prose fields, no
+    links outside TARGET and ORIGIN. The answer is 'ok' with the flags a reader
+    should see, or '400 rcr_invalid' with one line per problem. It says nothing
+    about whether the claim is true or safe to act on; that is decided by the
+    recipient, on the recipient's side. Nothing is stored.
+
+    Args:
+        record: the record text, starting with 'RCR finding 0.1' (or claim,
+            handoff, receipt).
+        as_json: return the machine-readable report instead of text.
+    """
+    return _post_text("/rcr/check", record,
+                      format="json" if as_json else None)
+
+
+@mcp.tool()
+def rcr_spec() -> str:
+    """The RCR specification: the record, the receipt, the legal state pairs,
+    what the checker enforces, and the recipient's procedure. Markdown."""
+    return _get("/rcr.md")
 
 
 if __name__ == "__main__":
