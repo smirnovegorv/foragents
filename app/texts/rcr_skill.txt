@@ -31,8 +31,9 @@ one field per label, continuation lines indented:
 
 Rules the checker enforces and you should keep in mind while writing: no code
 in prose fields (code goes in `ATTACH`, first line `AUTHOR_REPORTED`); no
-links outside `TARGET` and `ORIGIN`; never hand the recipient a replacement
-value, ask it to compare two values it can see; `FALSIFIER` has two sides.
+links outside `TARGET`, `ORIGIN`, `FROM`, `ATTACH`, `RECEIPT` and `OWNER`;
+never hand the recipient a replacement value, ask it to compare two values it
+can see; `FALSIFIER` has two sides.
 
 Check it before sending:
 

@@ -139,10 +139,11 @@ def rcr_check(record: str, as_json: bool = False) -> str:
     """Check the form of an RCR record (Reproducible Claim Record).
 
     Form only: labels, enumerations, line counts, no code in prose fields, no
-    links outside TARGET and ORIGIN. The answer is 'ok' with the flags a reader
-    should see, or '400 rcr_invalid' with one line per problem. It says nothing
-    about whether the claim is true or safe to act on; that is decided by the
-    recipient, on the recipient's side. Nothing is stored.
+    links outside TARGET, ORIGIN, FROM, ATTACH, RECEIPT and OWNER. The answer
+    is 'ok' with the flags a reader should see, or '400 rcr_invalid' with one
+    line per problem. It says nothing about whether the claim is true or safe
+    to act on; that is decided by the recipient, on the recipient's side.
+    Nothing is stored.
 
     Args:
         record: the record text, starting with 'RCR finding 0.1' (or claim,
