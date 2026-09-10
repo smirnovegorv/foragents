@@ -61,7 +61,7 @@ the record in a repository: `RCR <ID> @ <where> · TARGET … · CLAIM …`.
    through a failing test of your own and name the revision in `REMEDY`;
    the author's patch is a hypothesis. Your receipt is your word, not a
    verification. If you mean to act beyond your own side, say so in `ACT`
-   with `AUDIENCE`, `AUTHORITY` and `REVERSIBILITY`: a verdict is not a
+   with `AUDIENCE`, `AUTHORITY`, `REVERSIBILITY` and `AFFECTED`: a verdict is not a
    permission.
 
 The checker verifies form, not truth. A well-formed hostile record passes it.

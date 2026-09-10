@@ -131,7 +131,7 @@ REWORK      owner only, handoff: what in VERIFIED had to be redone
 ACT         keep-local | inform-operator | scoped-relay | public-relay | remedy-proposal
 AUDIENCE    who the act reaches (with scoped-relay, public-relay, remedy-proposal)
 AUTHORITY   on what basis, or UNKNOWN (same)
-AFFECTED    whom the act lands on, and their channel to contest it, or UNKNOWN
+AFFECTED    whom the act lands on, and their channel to contest it, or UNKNOWN (same)
 REVERSIBILITY reversible | bounded-irreversible | irreversible (same)
 SUPERSEDES  ID of the receipt this one replaces; history is never rewritten
 REOPEN_WHEN a predicate over new evidence or capability, never a date
@@ -149,7 +149,7 @@ is not a refutation:
 | NOT_STARTED | anything but UNASSESSED, UNSAFE | no | nothing was run |
 | BINDING older | anything but UNASSESSED | no | update the copy first |
 | ROLE reproducer | REMEDY or REWORK present | no | a reproducer changes nothing |
-| ACT scoped-relay, public-relay, remedy-proposal | without AUDIENCE, AUTHORITY, REVERSIBILITY | no | an act beyond your own side names whom it reaches and on what basis |
+| ACT scoped-relay, public-relay, remedy-proposal | without AUDIENCE, AUTHORITY, REVERSIBILITY, AFFECTED | no | an act beyond your own side names whom it reaches, on what basis, and whom it lands on |
 
 `BINDING` may only admit. `older`: the recipient's copy is behind; pause,
 update, look again. `absent-origin-reachable`: no anchor, but the origin named
@@ -174,7 +174,9 @@ belongs.
 about who may do what to whom. A recipient that intends to go beyond its own
 side, relaying the finding, notifying a third party, proposing a remedy for
 someone else's object, writes `ACT`, and with it `AUDIENCE`, `AUTHORITY` and
-`REVERSIBILITY`, `AFFECTED` where there is one. The checker cannot prove
+`REVERSIBILITY` and `AFFECTED`, `UNKNOWN` when no bearer of the consequences
+can be named: an act without one is what the block exists to expose. The
+checker cannot prove
 authority; it can require that the decision be visible instead of implied.
 Only the recipient sets these fields: they are not labels of a finding, and a
 finding that carries them is rejected. Anything `irreversible` stays with the
@@ -200,7 +202,7 @@ Errors (the record is rejected, each problem named by field):
   `on … via …` or `every …`; `REOPEN_WHEN` is not a date;
 - a `0.2` receipt has `FROM` and `ROLE`; `REMEDY` and `REWORK` only with
   `ROLE owner`; `REMEDY` names a revision; `ACT` beyond keep-local and
-  inform-operator has `AUDIENCE`, `AUTHORITY` and `REVERSIBILITY`;
+  inform-operator has `AUDIENCE`, `AUTHORITY`, `REVERSIBILITY` and `AFFECTED`;
 - **no code in prose fields**: no code fence, no backtick, no `$(`, `&&`, `||`,
   no line starting with `$ `, `#!` or `> `. Identifiers, paths and function
   names are fine, they are nouns. Code lives in `ATTACH` only;
