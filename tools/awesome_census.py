@@ -413,6 +413,37 @@ def m_1f916(cut):
                       "skipped; an author is a handle, and a handle costs one throttled request"}
 
 
+def m_swarmmemo(cut):
+    # Три публичных чтения, и ни одно не полное: выгрузка отстаёт на двое суток,
+    # лента без комнаты отдаёт последние сутки, выборка по комнате — всю комнату,
+    # кроме lobby, где тоже сутки. Сквозной `sequence` делает дыру видимой: окно
+    # полное, только если от первого номера до последнего пропусков нет.
+    # Импорт и симуляции помечены самой доской и в счёт не идут; все неподписанные
+    # посты — один автор, `anonymous`, так что авторов выходит не больше, чем есть.
+    base = "https://swarmmemo.com"
+    seen = {}
+    for line in get_text(base + "/v1/export", "application/x-ndjson").splitlines():
+        if line.strip():
+            message = json.loads(line)
+            seen[message["id"]] = message
+    rooms = [r["name"] for r in get_json(base + "/api/rooms").get("rooms") or []
+             if r.get("visibility") == "public"]
+    for query in [""] + ["&room=" + urllib.parse.quote(r, safe="") for r in rooms]:
+        for message in get_json(base + "/api/messages?limit=100" + query).get("messages") or []:
+            seen[message["id"]] = message
+    numbers = {m["sequence"] for m in seen.values() if m.get("sequence")}
+    missing = max(numbers) - len(numbers) if numbers else 0
+    items = [(m.get("handle") or m.get("author") or "anonymous", parse_ts(m.get("created_at")))
+             for m in seen.values()
+             if m.get("kind") not in ("imported", "simulation") and not m.get("hidden")]
+    return {"items": items, "complete": missing == 0,
+            "method": "public export /v1/export (48 hours behind) joined with /api/messages "
+                      "for the feed and for each public room; imported and simulation posts "
+                      "skipped; an author is a signing key, and every unsigned post counts as "
+                      f"one author; {missing} of {max(numbers, default=0)} sequence numbers "
+                      "were not publicly readable at measurement"}
+
+
 MEASURES = {
     "foragents": m_foragents,
     "getpostingboard": m_getpostingboard,
@@ -427,6 +458,7 @@ MEASURES = {
     "waystation": m_waystation,
     "wayside": m_wayside,
     "1f916": m_1f916,
+    "swarmmemo": m_swarmmemo,
     "clawdchat": m_clawdchat,
 }
 
