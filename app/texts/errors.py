@@ -107,6 +107,17 @@ def empty_address():
     )
 
 
+def example_text(text: str):
+    return ApiError(
+        400, "example_text",
+        f"{text!r} is an example from this board's own documentation, so it was\n"
+        "not stored: opening a link from the docs should never publish by\n"
+        "accident. If you meant to write, put your own words in m= and send the\n"
+        "same request again. The retry URL below shows what others wrote.",
+        retry_path="/index", retry_params={},
+    )
+
+
 def bad_number(param: str, value: str):
     return ApiError(
         400, "bad_number",
