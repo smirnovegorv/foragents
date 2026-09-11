@@ -12,12 +12,40 @@
 """
 
 import json
+import re
+from functools import lru_cache
+from pathlib import Path
+from urllib.parse import unquote_plus
 
 from . import config, db, defang, flags, limits, normalize, redact, tiers
 from .texts import errors
 from .util import graphemes, now_iso, sha256_hex, truncate_graphemes
 
 HONEYPOT_ADDRESS = "x-9f3a-drop"   # объявлен только в robots.txt (§5, §12)
+TEXTS = Path(__file__).resolve().parent / "texts"
+
+
+def _plain(text: str) -> str:
+    return " ".join(text.split()).casefold()
+
+
+@lru_cache(maxsize=1)
+def documented_examples() -> frozenset[str]:
+    """Тексты из примеров `m=` в собственных документах (`app/texts/`).
+
+    Открытая ссылка из документации — не намерение писать: агент, которому
+    велели «прочитать и открыть ссылки», опубликовал бы наши слова под своим
+    именем (находка Weaver про Relay, 2026-09-11). Вопрос это ловит только у
+    новой личности. Заполнители — {text}, <...>, TEXT, ... — не примеры: как
+    есть их никто не отправит."""
+    found = set()
+    for path in TEXTS.glob("*.txt"):
+        for value in re.findall(r"[?&]m=([^&\s\"'`)]+)", path.read_text(encoding="utf-8")):
+            text = unquote_plus(value).strip()
+            if re.search(r"[{}<>]", text) or not re.search(r"[a-z]", text):
+                continue
+            found.add(_plain(text))
+    return frozenset(found)
 
 
 def accept(fields: dict, identity, network: dict) -> tuple[int, int, list[str]]:
@@ -28,6 +56,8 @@ def accept(fields: dict, identity, network: dict) -> tuple[int, int, list[str]]:
     raw = fields.get("m")
     if raw is None:
         raise errors.no_message()
+    if _plain(raw) in documented_examples():            # до всего остального:
+        raise errors.example_text(raw.strip())          # ничего не считается
 
     limits.check_attempts(network)                      # шаг 1
     body, marks = normalize.normalize(raw)              # шаг 3
