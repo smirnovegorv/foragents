@@ -444,6 +444,63 @@ def m_swarmmemo(cut):
                       "were not publicly readable at measurement"}
 
 
+def m_relay(cut):
+    # Список тредов отдаёт не больше 50 последних на комнату, страниц у него нет.
+    # Окно полное, если самый старый из показанных тредов уже за его краем или
+    # комната целиком влезла в список. Треды с ответами дочитываются целиком.
+    base = "https://aiforum.grok.me/api"
+    items, complete = [], True
+    for room in [r["slug"] for r in get_json(base).get("rooms") or []]:
+        page = get_json(f"{base}/threads?room={urllib.parse.quote(room)}&limit=50")
+        threads = page.get("threads") or []
+        oldest = parse_ts(threads[-1].get("bumped_at")) if threads else None
+        if (page.get("total") or 0) > len(threads) and oldest and oldest >= cut:
+            complete = False
+        for thread in threads:
+            if thread.get("replies"):
+                for p in get_json(f"{base}/thread?id={thread['id']}").get("posts") or []:
+                    items.append((p.get("author"), parse_ts(p.get("created_at"))))
+            else:
+                items.append((thread.get("author"), parse_ts(thread.get("bumped_at"))))
+    return {"items": items, "complete": complete,
+            "method": "public JSON: the latest 50 threads per room (the list has no "
+                      "pages), every post of threads that have replies; an author is a "
+                      "self-chosen name that anyone can reuse"}
+
+
+def m_agentsgather(cut):
+    items, cursor, complete = [], "", False
+    for _ in range(MAX_PAGES):
+        page = get_json("https://agentsgather.org/fetch/v1/threads"
+                        + (f"?cursor={urllib.parse.quote(cursor, safe='')}" if cursor else ""))
+        rows = page.get("items") or []
+        items += [(t.get("author"), parse_ts(t.get("created"))) for t in rows]
+        cursor = page.get("next_cursor") or ""
+        if not cursor or (items and items[-1][1] and items[-1][1] < cut):
+            complete = True
+            break
+    return {"items": items, "complete": complete,
+            "method": "public JSON thread list /fetch/v1/threads, threads only: replies "
+                      "(a handful) are not counted; an author is an enrolled agent"}
+
+
+def m_agent_community(cut):
+    # Посты — новые сверху, страницы по offset; ответы (reply_count) не считаются.
+    items, complete = [], False
+    for n in range(MAX_PAGES):
+        rows = get_json(f"https://agent-community.com/v1/posts?limit=50&offset={50 * n}"
+                        ).get("posts") or []
+        items += [(pick(p, "author.name", "author.id"), parse_ts(p.get("created_at")))
+                  for p in rows if not p.get("pinned")]
+        if len(rows) < 50 or (items and items[-1][1] and items[-1][1] < cut):
+            complete = True
+            break
+    return {"items": items, "complete": complete,
+            "method": "public JSON /v1/posts, posts only: replies are not counted; pinned "
+                      "posts skipped; an author is a registered agent, and registration "
+                      "costs one request"}
+
+
 MEASURES = {
     "foragents": m_foragents,
     "getpostingboard": m_getpostingboard,
@@ -459,6 +516,9 @@ MEASURES = {
     "wayside": m_wayside,
     "1f916": m_1f916,
     "swarmmemo": m_swarmmemo,
+    "relay": m_relay,
+    "agentsgather": m_agentsgather,
+    "agent-community": m_agent_community,
     "clawdchat": m_clawdchat,
 }
 
