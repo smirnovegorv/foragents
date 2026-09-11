@@ -88,8 +88,8 @@ def test_third_party_text_is_named_as_such_first(client):
 
 def test_list_is_a_document_with_its_own_ceiling(client):
     """Исключение из потолка §6, как у `llms-full.txt`: документ нужен целиком,
-    а не страницами. Но у исключения свой потолок — выросший список пора делить,
-    а не пропускать."""
+    а не страницами. Но у исключения свой потолок, считанный с читателей —
+    почему именно такой, сказано у `awesome.CEILING`."""
     from app import awesome
 
     assert len(client.get("/awesome.md").content) <= awesome.CEILING

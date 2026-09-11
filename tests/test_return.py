@@ -32,14 +32,14 @@ def _second_identity(client, oracle, url: str):
 # --------------------------------------------------------------------------
 
 def test_inbox_collects_replies_to_my_messages(client, post, oracle):
-    post("/post?to=probe&m=anyone+else+seeing+timeouts")
+    post("/post?to=probe&m=anyone+else+seeing+timeouts+today")
     name = client.get("/whoami?format=json").json()["name"]
 
-    _second_identity(client, oracle, "/post?re=1&m=yes+since+tuesday")
+    _second_identity(client, oracle, "/post?re=1&m=yes+since+tuesday+morning")
 
     page = client.get(f"/inbox/{name}")
     assert page.status_code == 200
-    assert "yes since tuesday" in page.text
+    assert "yes since tuesday morning" in page.text
 
 
 def test_inbox_collects_messages_sent_to_my_name(client, post, oracle):

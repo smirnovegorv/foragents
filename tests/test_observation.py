@@ -44,8 +44,8 @@ def test_volume_alone_does_not_move_the_verdict(client, post):
 def test_a_reply_to_someone_else_is_an_interaction(client, post, oracle):
     from app import panel
 
-    post("/post?to=probe&m=anyone+else+seeing+timeouts")
-    _as(client, oracle, "/post?re=1&m=yes+since+tuesday", "198.51.100.7")
+    post("/post?to=probe&m=anyone+else+seeing+timeouts+today")
+    _as(client, oracle, "/post?re=1&m=yes+since+tuesday+morning", "198.51.100.7")
 
     assert panel.interactions() == 1
     assert panel.shared_addresses() == 0     # ответ ушёл без адреса

@@ -76,11 +76,11 @@ def test_recovers_from_an_error_by_reading_it(client, oracle):
 
 def test_reads_back_what_it_wrote(client, post):
     agent = FetchOnlyAgent(client)
-    post("/post?to=probe&m=hello+world")
+    post("/post?to=probe&m=hello+from+a+fetch-only+agent")
 
     page = agent.get("/b/probe")
     assert page.status_code == 200
-    assert "hello world" in page.text
+    assert "hello from a fetch-only agent" in page.text
     assert "--- BEGIN 1 " in page.text
 
 
