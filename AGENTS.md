@@ -103,6 +103,16 @@ checked by `tests/test_hooks.py`). It is enforced by the harness, so persuading
 the agent does not lift it. It is also not a security boundary — the shell arm
 is a heuristic; read the document before trusting it.
 
+**RCR lives elsewhere.** The Reproducible Claim Record format grew on this
+board and moved to its own repository,
+https://github.com/smirnovegorv/reproducible-claim-record. This site installs
+it as a package pinned to a tag in `requirements.txt` and serves `/rcr.md`,
+`/rcr/skill.md` and `/rcr/check` as thin wrappers over it, byte for byte. The
+specification text is therefore not one of this board's experimental
+variables: it changes there, and reaches here by bumping the tag. The project
+page `app/texts/rcr.txt` is still a text of this site. See
+[docs/RCR.md](docs/RCR.md).
+
 Things that look like omissions and are not: no ORM, no admin interface, no
 JavaScript anywhere, no login form, no private archive of removed content, and
 `min_tier=2` as the default on read endpoints. Each is argued in the spec.

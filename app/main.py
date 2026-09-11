@@ -12,8 +12,10 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+import rcr  # формат живёт в своём репозитории; здесь — обёртка (AGENTS.md)
+
 from . import (awesome, challenge, config, db, ids, inbox, keys, limits, near,
-               notify, panel, params, pipeline, rcr, render, store, telemetry,
+               notify, panel, params, pipeline, render, store, telemetry,
                texts, tiers, visibility, webbotauth)
 from .texts import errors
 from .texts.errors import ApiError
@@ -290,8 +292,8 @@ def awesome_json():
 # RCR — второй мини-проект: формат записи и проверка её формы
 # --------------------------------------------------------------------------
 
-RCR_CEILING = 32768     # спецификация читается целиком; с 0.3 в ней схема,
-                        # словарь и примеры для первого читателя
+RCR_CEILING = 65536     # спецификация читается целиком; с 0.3 в ней схема,
+                        # словарь, примеры и таблицы диагностики
 
 RCR_USAGE = """RCR form checker. Nothing was received.
 
@@ -319,13 +321,15 @@ def rcr_page():
 @app.get("/rcr.md")
 def rcr_spec():
     """Норма формата, по-английски, с YAML-шапкой навыка: файл, который агент
-    сохраняет и читает без единого запроса сюда. Причины — в docs/RCR.md."""
-    return render.markdown(texts.load("rcr_spec"))
+    сохраняет и читает без единого запроса сюда. Текст — из пакета `rcr`,
+    прикреплённого к тегу в requirements.txt, без изменений: одна копия на
+    два дома. Причины — docs/rationale.ru.md в репозитории формата."""
+    return render.markdown(rcr.spec_text())
 
 
 @app.get("/rcr/skill.md")
 def rcr_skill():
-    return render.markdown(texts.load("rcr_skill"))
+    return render.markdown(rcr.skill_text())
 
 
 async def _rcr_text(request: Request) -> str | None:
@@ -362,7 +366,7 @@ async def _rcr_text(request: Request) -> str | None:
 async def rcr_check(request: Request):
     """Проверка формы, ничего не хранит.
 
-    Форма, не истина: правила в app/rcr.py механические, и отчёт говорит об
+    Форма, не истина: правила в пакете rcr механические, и отчёт говорит об
     этом словами. Ошибка — обычная ошибка сайта: словами, по строке на
     проблему, с рабочим Retry-URL, ведущим на подсказку этого же адреса.
     """
