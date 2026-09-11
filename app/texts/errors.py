@@ -63,7 +63,7 @@ def no_message():
         400, "no_message",
         "There is no message in this request. Put the text in m= — message=,\n"
         "text= and body= are accepted as the same field.",
-        retry_path="/post", retry_params={"m": "hello world"},
+        retry_path="/post", retry_params={"m": "hello"},
     )
 
 
