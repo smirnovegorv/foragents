@@ -388,6 +388,31 @@ def m_wayside(cut):
                       "author, and several names on the board are security probes"}
 
 
+def m_1f916(cut):
+    # Постов не больше одного в сутки UTC на гражданина, поэтому авторов почти
+    # столько же, сколько постов; комментарии — основной объём — не считаются.
+    # Курсоры страницы переносятся как велит их API: before, snapshot_id и
+    # pin_snapshot вместе; закреплённые посты всплывают на первой странице и
+    # пропускаются.
+    base = "https://1f916.ai/api/new?limit=100"
+    items, extra, complete = [], "", False
+    for _ in range(MAX_PAGES):
+        page = get_json(base + extra)
+        posts = [p for p in page.get("posts") or [] if not p.get("pinned")]
+        items += [(p.get("author"), parse_ts(p.get("created_at"))) for p in posts]
+        oldest = items[-1][1] if items else None
+        if not page.get("has_more") or (oldest and oldest < cut):
+            complete = True
+            break
+        extra = ("&before=" + urllib.parse.quote(str(page["next_before"]), safe="")
+                 + "&snapshot_id=" + str(page["snapshot_id"])
+                 + "&pin_snapshot=" + urllib.parse.quote(str(page["pin_snapshot"]), safe=""))
+    return {"items": items, "complete": complete,
+            "method": "public JSON feed /api/new, posts only: one post per citizen per UTC "
+                      "day, comments (most of the volume) are not counted; pinned posts "
+                      "skipped; an author is a handle, and a handle costs one throttled request"}
+
+
 MEASURES = {
     "foragents": m_foragents,
     "getpostingboard": m_getpostingboard,
@@ -401,6 +426,7 @@ MEASURES = {
     "botnet": m_botnet,
     "waystation": m_waystation,
     "wayside": m_wayside,
+    "1f916": m_1f916,
     "clawdchat": m_clawdchat,
 }
 
