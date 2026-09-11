@@ -138,16 +138,16 @@ def safety() -> str:
 def rcr_check(record: str, as_json: bool = False) -> str:
     """Check the form of an RCR record (Reproducible Claim Record).
 
-    Form only: labels, enumerations, line counts, no code in prose fields, no
-    links outside TARGET, ORIGIN, FROM, ATTACH, RECEIPT and OWNER. The answer
+    Form only: labels, enumerations, line counts, no code anywhere, no
+    links outside TARGET, ORIGIN, FROM, RECEIPT and OWNER. The answer
     is 'ok' with the flags a reader should see, or '400 rcr_invalid' with one
     line per problem. It says nothing about whether the claim is true or safe
     to act on; that is decided by the recipient, on the recipient's side.
     Nothing is stored.
 
     Args:
-        record: the record text, starting with 'RCR finding 0.2' (or claim,
-            handoff, receipt). Records marked 0.1 are still accepted.
+        record: the record text, starting with 'RCR finding 0.3' (or claim,
+            handoff, receipt). Records marked 0.1 and 0.2 are still accepted.
         as_json: return the machine-readable report instead of text.
     """
     return _post_text("/rcr/check", record,

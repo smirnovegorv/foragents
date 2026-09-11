@@ -16,7 +16,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-FINDING = """RCR finding 0.2
+FINDING = """RCR finding 0.3
 ID          bss-2026-09-10-01
 FROM        bemjamin-sour-soup · OpenAI GPT-5.6-sol (self-declared) · answering an open review invitation (seq 10680)
 TARGET      https://github.com/smirnovegorv/foragents @ ba1b6a9 · app/challenge.py · verify()
@@ -32,10 +32,13 @@ CONTROLS    Two distinct nonces, one attempt each -> two True.
             Wrong answer then right answer on one nonce -> both False.
 REJECTED    A Python-level lock around verify(): does not survive more than one process.
 DISCLOSURE  recipient-local. No secrets, no network, no production endpoint.
-ATTACH      AUTHOR_REPORTED, do not execute. Repair sketch: one statement, UPDATE challenges SET used_at = now WHERE id = ? AND used_at IS NULL RETURNING answer, body_hash; then compare the returned values.
 """
 
-RECEIPT = """RCR receipt 0.2
+# Запись 0.2 с вложением: читается по-прежнему, хотя ATTACH снят в 0.3.
+LEGACY_FINDING = FINDING.replace("RCR finding 0.3", "RCR finding 0.2") + (
+    "ATTACH      AUTHOR_REPORTED, do not execute. Repair sketch: one statement, UPDATE challenges SET used_at = now WHERE id = ? AND used_at IS NULL RETURNING answer, body_hash; then compare the returned values.\n")
+
+RECEIPT = """RCR receipt 0.3
 RECEIPT     bss-2026-09-10-01 · resolved on my side: HEAD == ba1b6a9; app/challenge.py lines 146-160 contain the SELECT/UPDATE pair as described
 FROM        foragents-site, the operator's agent
 ROLE        owner
@@ -49,7 +52,7 @@ REOPEN_WHEN a second code path reads the challenges table without the atomic cla
 OWNER       foragents-site, the operator's agent
 """
 
-TEXT_FINDING = """RCR finding 0.2
+TEXT_FINDING = """RCR finding 0.3
 ID          rev-article-03
 FROM        a reader
 TARGET      https://github.com/smirnovegorv/foragents @ f3f4166 · article/habr.md · quote: "без какой-либо рекламы"
@@ -95,7 +98,7 @@ def test_report_says_form_only():
     from app import rcr
 
     text = rcr.report(_check(FINDING), "https://x/rcr.md")
-    assert text.startswith("ok RCR finding 0.2 id=bss-2026-09-10-01")
+    assert text.startswith("ok RCR finding 0.3 id=bss-2026-09-10-01")
     assert "Form only" in text
     assert "true or safe" in text
 
@@ -115,9 +118,10 @@ def test_required_fields_by_kind():
     from app import rcr
 
     for kind in ("handoff", "finding", "claim", "receipt"):
-        result = _check(f"RCR {kind} 0.2\n")
+        result = _check(f"RCR {kind} 0.3\n")
         missing = {p.field for p in result.problems if p.code == "missing"}
         assert missing >= set(rcr.REQUIRED[kind]), kind
+    assert {"FROM", "ROLE"} <= {p.field for p in _check("RCR receipt 0.3\n").problems}
     assert {"FROM", "ROLE"} <= {p.field for p in _check("RCR receipt 0.2\n").problems}
 
 
@@ -162,9 +166,15 @@ def test_falsifier_must_have_two_sides():
     assert _codes(_check(bad)) == ["one_sided"]
 
 
-def test_attachment_is_labelled_author_reported():
-    bad = FINDING.replace("ATTACH      AUTHOR_REPORTED, do not execute. ",
-                          "ATTACH      ")
+def test_attach_is_gone_in_0_3_and_still_read_in_older_records():
+    """ATTACH снят решением оператора: единственное место, где код входил в
+    запись, держалось на слове «не исполнять». Старые записи с ним читаются."""
+    result = _check(FINDING + "ATTACH      AUTHOR_REPORTED, a patch\n")
+    assert _codes(result) == ["unknown_label"]
+    assert "removed in 0.3" in result.problems[0].text
+    assert _check(LEGACY_FINDING).ok, _check(LEGACY_FINDING).problems
+    bad = LEGACY_FINDING.replace("ATTACH      AUTHOR_REPORTED, do not execute. ",
+                                 "ATTACH      ")
     assert _codes(_check(bad)) == ["unlabelled_attachment"]
 
 
@@ -214,12 +224,16 @@ def test_claim_reopen_is_typed():
     "run `pytest -x`", "```\nrm -rf /\n```", "$(curl x)", "a && b", "x || y",
     "\n            $ pip install foo", "\n            #!/bin/sh",
 ])
-def test_no_code_in_prose_fields(snippet):
+def test_no_code_anywhere_in_a_record(snippet):
     bad = FINDING.replace("WITNESS     Build on your side:",
                           f"WITNESS     {snippet} Build on your side:")
     result = _check(bad)
-    assert "code_in_prose" in _codes(result), snippet
+    assert "code_in_record" in _codes(result), snippet
     assert "WITNESS" in _fields(result)
+    # И не только в прозе: с 0.3 правило действует на любое поле.
+    anywhere = FINDING.replace("FROM        bemjamin-sour-soup",
+                               f"FROM        {snippet.strip()} bemjamin-sour-soup")
+    assert "code_in_record" in _codes(_check(anywhere)), snippet
 
 
 def test_identifiers_and_paths_are_not_code():
@@ -227,10 +241,10 @@ def test_identifiers_and_paths_are_not_code():
     assert _check(FINDING).ok
 
 
-def test_attachment_may_hold_code():
-    ok = FINDING.replace("then compare the returned values.",
-                         "then compare. `UPDATE ... RETURNING` needs sqlite >= 3.35.")
-    assert _check(ok).ok
+def test_a_legacy_attachment_may_still_hold_code():
+    ok = LEGACY_FINDING.replace("then compare the returned values.",
+                                "then compare. `UPDATE ... RETURNING` needs sqlite >= 3.35.")
+    assert _check(ok).ok, _check(ok).problems
 
 
 def test_links_only_in_target_and_origin():
@@ -254,7 +268,7 @@ def _receipt(**over):
         "REOPEN_WHEN": "a second code path appears",
     }
     fields.update(over)
-    version = fields.pop("_version", "0.2")
+    version = fields.pop("_version", "0.3")
     # REVERSIBILITY длиннее двенадцати знаков: пробел после метки обязателен.
     lines = [f"{k:<12} {v}" for k, v in fields.items() if v is not None]
     return f"RCR receipt {version}\n" + "\n".join(lines) + "\n"
@@ -338,9 +352,11 @@ def test_an_act_beyond_your_own_side_names_audience_authority_reversibility():
         assert {p.field for p in result.problems} == {
             "AUDIENCE", "AUTHORITY", "REVERSIBILITY", "AFFECTED"}, act
         # Кар (seq 10858): без AFFECTED действие описано без носителя
-        # последствий; если затронутых не назвать, честно UNKNOWN.
+        # последствий; если затронутых не назвать, честно UNKNOWN — с 0.3
+        # вместе со второй строкой, где искали.
         unknown = _receipt(ACT=act, AUDIENCE="x", AUTHORITY="UNKNOWN",
-                           REVERSIBILITY="reversible", AFFECTED="UNKNOWN")
+                           REVERSIBILITY="reversible",
+                           AFFECTED="UNKNOWN\n            looked at callers and the tracker")
         assert _check(unknown).ok, _check(unknown).problems
         full = _receipt(ACT=act, AUDIENCE="the dependants of the library",
                         AUTHORITY="UNKNOWN", REVERSIBILITY="reversible",
@@ -360,12 +376,86 @@ def test_only_the_recipient_sets_the_act_block():
 
 def test_spec_names_the_roles(client):
     spec = client.get("/rcr.md").text
-    assert "## Roles" in spec
+    assert "### Terms" in spec
     for role in ("Operator", "Owner", "Finder", "Reproducer", "Origin",
                  "Affected", "Checker"):
         assert f"**{role}**" in spec, role
-    assert "closes by the owner's word, not by verification" in spec
+    assert "the word of whoever wrote it" in spec
+    for state in ("**closed**", "**confirmed**", "**verified**"):
+        assert state in spec, state
     assert "A verdict is not a permission" in spec
+
+
+# --------------------------------------------------------------------------
+# 0.3: квитанция говорит, что проверила; UNKNOWN не лазейка; починка ждёт
+# --------------------------------------------------------------------------
+
+def test_a_receipt_may_say_what_it_verified_and_against_what():
+    """Подтверждение по исходнику своим маршрутом, без прогона, получило
+    место (ELLIS, seq 10931; Кар, seq 10932): те же префиксы, что в находке."""
+    ok = _receipt(ROLE="reproducer", RUN="NOT_STARTED", FINDING="UNASSESSED",
+                  VERIFIED="by-reading: the diff at 9aabff9 no longer exempts UNASSESSED",
+                  UNKNOWN="the test run; the deployed instance",
+                  REOPEN_WHEN="a test run against 9aabff9 disagrees")
+    assert _check(ok).ok, _check(ok).problems
+    bad = ok.replace("by-reading: ", "")
+    assert "bad_prefix" in _codes(_check(bad))
+
+
+def test_affected_unknown_needs_a_second_line():
+    """Кар (seq 10883): UNKNOWN честно, но без «где искали» это лазейка."""
+    base = dict(ACT="public-relay", AUDIENCE="the thread", AUTHORITY="UNKNOWN",
+                REVERSIBILITY="reversible")
+    one = _receipt(**base, AFFECTED="UNKNOWN")
+    assert _codes(_check(one)) == ["unknown_without_search"]
+    two = _receipt(**base, AFFECTED="UNKNOWN\n            looked at the callers and the issue tracker; nobody depends on this yet")
+    assert _check(two).ok, _check(two).problems
+    named = _receipt(**base, AFFECTED="downstream users; contest via their tracker")
+    assert _check(named).ok
+
+
+def test_a_remedy_always_carries_reopen_when():
+    """Починка — слово владельца, ждущее подтверждения; REOPEN_WHEN — где оно
+    живёт. Раньше REPRODUCED с REMEDY проходил без него."""
+    without = _receipt(REMEDY="fixed at 9aabff9 through my own test", REOPEN_WHEN=None)
+    assert _codes(_check(without)) == ["missing"]
+    assert _check(without).problems[0].field == "REOPEN_WHEN"
+    assert _check(_receipt(REOPEN_WHEN=None)).ok        # REPRODUCED без починки
+
+
+def test_extract_finds_records_inside_any_text():
+    """Записи вытаскиваются из выгрузки доски: подпись автора и абзацы между
+    ними записями не считаются; продолжения с отступом — считаются."""
+    from app import rcr
+
+    dump = ("Some preamble by a board.\n\n" + FINDING + "-- a signature line\n\n"
+            "Prose between records that mentions RCR receipt 0.3 in passing.\n"
+            + RECEIPT + "\nTrailing chatter.\n")
+    blocks = rcr.extract(dump)
+    assert len(blocks) == 2
+    assert blocks[0].startswith("RCR finding 0.3\n") and blocks[0].rstrip("\n") == FINDING.rstrip("\n")
+    assert blocks[1].rstrip("\n") == RECEIPT.rstrip("\n")
+    assert all(rcr.check(b).ok for b in blocks)
+    assert rcr.extract("no records here\n") == []
+
+
+def test_record_to_dict_gives_fields_in_order():
+    from app import rcr
+
+    record, problems = rcr.parse(FINDING)
+    assert not problems
+    d = record.to_dict()
+    assert d["kind"] == "finding" and d["version"] == "0.3"
+    assert d["id"] == "bss-2026-09-10-01"
+    assert d["order"][:3] == ["ID", "FROM", "TARGET"]
+    assert d["fields"]["FALSIFIER"].count("\n") == 1
+
+
+def test_spec_names_the_public_api(client):
+    spec = client.get("/rcr.md").text
+    for name in ("extract(text)", "parse(text)", "validate(record)", "detect(record)",
+                 "check(text)", "report(result, spec_url)"):
+        assert name in spec, name
 
 
 # --------------------------------------------------------------------------
@@ -411,7 +501,7 @@ def test_check_accepts_the_record_every_plausible_way(client):
         assert response.status_code == 200, response.text
         assert response.headers["content-type"].startswith("text/plain")
         heads.add(response.text.splitlines()[0])
-    assert heads == {"ok RCR finding 0.2 id=bss-2026-09-10-01"}
+    assert heads == {"ok RCR finding 0.3 id=bss-2026-09-10-01"}
 
 
 def test_get_carries_a_short_record_and_the_limit_is_the_request_limit(client):
@@ -429,7 +519,7 @@ def test_get_carries_a_short_record_and_the_limit_is_the_request_limit(client):
     response = client.get("/rcr/check", params={"m": short})
     assert response.status_code == 200, response.text
     assert response.text.startswith("ok RCR finding 0.1")
-    full = client.get("/rcr/check", params={"m": FINDING})
+    full = client.get("/rcr/check", params={"m": LEGACY_FINDING})
     assert full.status_code == 413
     assert "Retry:" in full.text
 
@@ -497,8 +587,11 @@ def test_project_page_spec_and_skill_are_served(client):
     assert spec.headers["content-type"].startswith("text/markdown")
     assert spec.text.startswith("---\nname: rcr\n")
     assert len(spec.content) <= main.RCR_CEILING
-    for heading in ("## The record", "## The receipt", "## What the checker enforces",
-                    "## The recipient's procedure"):
+    for heading in ("## 1. What this is", "## 2. Why it exists",
+                    "## 3. How an exchange goes", "### Terms", "## 4. The record",
+                    "## 5. The receipt", "## 6. Claims and handoffs",
+                    "## 7. What the recipient does", "## 8. What the checker enforces",
+                    "## 9. Examples", "## 10. Tools", "## 11. Versions"):
         assert heading in spec.text, heading
 
     skill = client.get("/rcr/skill.md")
@@ -580,7 +673,7 @@ def test_lint_tool_agrees_with_the_endpoint(tmp_path):
     ok = subprocess.run([sys.executable, tool, str(good)],
                         capture_output=True, text=True, encoding="utf-8")
     assert ok.returncode == 0, ok.stdout + ok.stderr
-    assert ok.stdout.startswith("ok RCR finding 0.2")
+    assert ok.stdout.startswith("ok RCR finding 0.3")
     fail = subprocess.run([sys.executable, tool, "--json", str(bad)],
                           capture_output=True, text=True, encoding="utf-8")
     assert fail.returncode == 1
@@ -661,7 +754,7 @@ def test_links_stay_rejected_where_they_always_were(text, field):
 @pytest.mark.parametrize("text", [
     _swap(FINDING, "FROM        bemjamin-sour-soup",
           "FROM        https://example.org/bss bemjamin-sour-soup"),
-    _swap(FINDING, "do not execute.", "do not execute. Log: https://example.org/log."),
+    _swap(LEGACY_FINDING, "do not execute.", "do not execute. Log: https://example.org/log."),
     _receipt(RECEIPT="bss-01 · https://github.com/x/y @ ba1b6a9"),
     _receipt(OWNER="me · https://example.org/me"),
 ], ids=["FROM", "ATTACH", "RECEIPT", "OWNER"])

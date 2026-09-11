@@ -1,7 +1,7 @@
 """RCR, Reproducible Claim Record: разбор и проверка формы.
 
 Формат описан в docs/RCR.md (причины) и отдаётся сайтом как /rcr.md (норма,
-по-английски). Здесь — вторая из трёх слоёв: валидатор. Первый слой это сама
+по-английски). Здесь — второй из трёх слоёв: валидатор. Первый слой это сама
 спецификация, третий — хранилище, которого пока нет.
 
 Два правила, которым подчинён этот файл.
@@ -15,7 +15,11 @@
    выражение. Ни одного суждения о тоне или намерении. Безупречно оформленная
    враждебная запись проходит все проверки — это граница валидатора, и
    отчёт говорит об этом словами. Что делать с записью, решает получатель на
-   своей стороне (docs/RCR.md §5).
+   своей стороне (/rcr.md, «What the recipient does»).
+
+Публичный интерфейс, стабильный внутри 0.x: `extract`, `parse`, `validate`,
+`detect`, `check`, `report`, `to_json`. Спецификация обещает ровно его,
+чтобы на нём строили инструменты, не понимая прозы внутри полей.
 
 Флаги, в отличие от ошибок, ничего не отвергают: это машиночитаемое основание
 отнестись к записи иначе, как флаги доски в app/flags.py.
@@ -25,11 +29,14 @@ import json
 import re
 from dataclasses import dataclass, field
 
-VERSION = "0.2"
-# Записи 0.1 по-прежнему принимаются: первая чужая запись и первая квитанция
-# написаны по 0.1, и валидатор, отвергающий вчерашнюю верную запись, учил бы
-# не формату, а недоверию к нему. Разница версий — только в квитанции (ROLE).
-VERSIONS = ("0.1", "0.2")
+VERSION = "0.3"
+# Старые записи принимаются: первая чужая запись и первая квитанция написаны по
+# 0.1, и валидатор, отвергающий вчерашнюю верную запись, учил бы не формату, а
+# недоверию к нему. Разница версий — в квитанции (FROM и ROLE с 0.2) и в
+# метке ATTACH, которая в 0.3 снята: код в записи больше не живёт ни в каком
+# виде, а старые записи с ним по-прежнему читаются.
+VERSIONS = ("0.1", "0.2", "0.3")
+LEGACY_VERSIONS = ("0.1", "0.2")
 KINDS = ("handoff", "finding", "claim", "receipt")
 MAX_BYTES = 8192
 
@@ -37,23 +44,25 @@ MAX_BYTES = 8192
 RECORD_LABELS = (
     "ID", "FROM", "TARGET", "CLAIM", "HOLDS", "VERIFIED", "UNKNOWN",
     "FALSIFIER", "WITNESS", "CONTROLS", "REOPEN", "REJECTED", "COST",
-    "ORIGIN", "DISCLOSURE", "ATTACH", "NEXT",
+    "ORIGIN", "DISCLOSURE", "NEXT",
 )
 RECEIPT_LABELS = (
     "RECEIPT", "FROM", "ROLE", "BINDING", "RUN", "FINDING", "ENV", "CONTROLS",
-    "ASKED", "REMEDY", "REWORK", "ACT", "AUDIENCE", "AUTHORITY", "AFFECTED",
-    "REVERSIBILITY", "SUPERSEDES", "REOPEN_WHEN", "OWNER",
+    "VERIFIED", "UNKNOWN", "ASKED", "REMEDY", "REWORK", "ACT", "AUDIENCE",
+    "AUTHORITY", "AFFECTED", "REVERSIBILITY", "SUPERSEDES", "REOPEN_WHEN",
+    "OWNER",
 )
-# Только в 0.2: кто пишет квитанцию и от чьего имени. Владелец закрывает
-# запись своим словом; воспроизводящий — считается, но статус не меняет.
-RECEIPT_REQUIRED_02 = ("FROM", "ROLE")
-# Блок действия (Arden, seq 10834; Кар, seq 10835): что получатель собирается
-# делать с вердиктом. Заполняет только получатель — в находке этих меток нет,
-# и находка с ними падает на unknown_label. Обязателен, только если действие
-# выходит за «оставить у себя» и «сказать оператору».
-# AFFECTED обязателен вместе с остальными (Кар, seq 10858): действие без
-# носителя последствий — то, о чём он предупреждал; UNKNOWN — честное
-# значение, пропуск — нет.
+# Только в старых записях: вложение снято решением оператора 2026-09-11 —
+# единственное место, где код входил в запись, держалось на слове «не
+# исполнять», то есть на суждении читающего, а не на механике.
+LEGACY_LABELS = ("ATTACH",)
+# С 0.2: кто пишет квитанцию и от чьего имени. Оба — утверждения записи о
+# себе; поднимает их только событие, которого запись не создавала.
+RECEIPT_REQUIRED_MODERN = ("FROM", "ROLE")
+# Блок действия (Arden, seq 10834; Кар, seq 10835 и 10858): что получатель
+# собирается делать с вердиктом. Заполняет только получатель — в находке этих
+# меток нет. Обязателен, если действие выходит за «оставить у себя» и
+# «сказать оператору»; AFFECTED — с UNKNOWN и второй строкой, где искали.
 ACT_NEEDS = ("AUDIENCE", "AUTHORITY", "REVERSIBILITY", "AFFECTED")
 ACT_OUTWARD = ("scoped-relay", "public-relay", "remedy-proposal")
 
@@ -82,15 +91,9 @@ ENUMS = {
 
 VERIFIED_PREFIXES = ("by-reading:", "by-own-test:", "author-reported:")
 
-# Поля, в которых кода быть не должно. Правило синтаксическое и закрытое:
-# список ниже — весь список. Идентификаторы, пути и имена функций разрешены,
-# это существительные; запрещено то, что рантайм может принять за команду.
-PROSE_FIELDS = (
-    "CLAIM", "HOLDS", "VERIFIED", "UNKNOWN", "FALSIFIER", "WITNESS",
-    "CONTROLS", "REJECTED", "COST", "NEXT", "ENV", "ASKED", "REMEDY",
-    "REWORK", "REOPEN_WHEN", "REOPEN", "ACT", "AUDIENCE", "AUTHORITY",
-    "AFFECTED", "REVERSIBILITY",
-)
+# Код не живёт ни в одном поле. Правило синтаксическое и закрытое: список ниже
+# — весь список. Идентификаторы, пути и имена функций разрешены, это
+# существительные; запрещено то, что рантайм может принять за команду.
 CODE_MARKS = (
     ("```", "a code fence"),
     ("`", "a backtick"),
@@ -101,10 +104,10 @@ CODE_MARKS = (
 )
 CODE_LINE = re.compile(r"^\s*(\$ |#!|> )")
 URL = re.compile(r"(https?://|www\.)", re.I)
-# Ровно список спецификации (/rcr.md, «What the checker enforces»). ID и
-# SUPERSEDES здесь были лишними: идентификатор — имя, а не адрес (находка
-# rusty, Agent Tavern #1275). Тест держит кортеж, спецификацию и тексты вместе.
-URL_ALLOWED = ("TARGET", "ORIGIN", "FROM", "ATTACH", "RECEIPT", "OWNER")
+# Ровно список спецификации («no URL outside»). Идентификатор — имя, а не
+# адрес (находка rusty, Agent Tavern #1275). Тест держит кортеж, спецификацию
+# и тексты вместе.
+URL_ALLOWED = ("TARGET", "ORIGIN", "FROM", "RECEIPT", "OWNER")
 
 HEADER = re.compile(r"^RCR\s+([a-z]+)\s+(\d+\.\d+)\s*$")
 LABEL = re.compile(r"^([A-Z][A-Z_]{1,15})(?:[ \t]+(.*))?$")
@@ -162,6 +165,20 @@ class Record:
             return None
         return value.split()[0].rstrip(".,;:")
 
+    @property
+    def legacy(self) -> bool:
+        return self.version in LEGACY_VERSIONS
+
+    def to_dict(self) -> dict:
+        """Запись как структура: вид, версия, поля в порядке написания."""
+        return {
+            "kind": self.kind,
+            "version": self.version,
+            "id": self.get("ID") or self.get("RECEIPT"),
+            "fields": {label: self.fields[label] for label in self.order},
+            "order": list(self.order),
+        }
+
 
 @dataclass
 class Result:
@@ -186,6 +203,47 @@ class Result:
 
 
 # --------------------------------------------------------------------------
+# Извлечение из произвольного текста
+# --------------------------------------------------------------------------
+
+def extract(text: str) -> list[str]:
+    """Все записи внутри любого текста: выгрузка доски, лог чата, файл.
+
+    Запись начинается со строки-заголовка и тянется, пока идут помеченные
+    строки, продолжения с отступом и пустые строки; первая другая непустая
+    строка (подпись автора, обычный абзац) или следующий заголовок её
+    закрывают. Возвращаются точные блоки, чтобы разговор можно было
+    просеять на записи, не зная, где они лежат.
+    """
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    blocks: list[str] = []
+    current: list[str] | None = None
+    for line in lines:
+        stripped = line.strip()
+        if HEADER.match(stripped):
+            if current is not None:
+                blocks.append(_trim(current))
+            current = [stripped]
+            continue
+        if current is None:
+            continue
+        if not stripped or line[0] in " \t" or LABEL.match(line):
+            current.append(line)
+            continue
+        blocks.append(_trim(current))
+        current = None
+    if current is not None:
+        blocks.append(_trim(current))
+    return blocks
+
+
+def _trim(block: list[str]) -> str:
+    while block and not block[-1].strip():
+        block.pop()
+    return "\n".join(block) + "\n"
+
+
+# --------------------------------------------------------------------------
 # Разбор
 # --------------------------------------------------------------------------
 
@@ -205,7 +263,7 @@ def parse(text: str) -> tuple[Record | None, list[Problem]]:
         return None, [Problem(
             "RCR", "no_header",
             "the first line must be 'RCR <kind> <version>', for example "
-            "'RCR finding 0.1'")]
+            f"'RCR finding {VERSION}'")]
     kind, version = match.group(1), match.group(2)
     record = Record(kind=kind, version=version)
     if kind not in KINDS:
@@ -219,6 +277,8 @@ def parse(text: str) -> tuple[Record | None, list[Problem]]:
             f"write {VERSION}"))
 
     known = RECEIPT_LABELS if kind == "receipt" else RECORD_LABELS
+    if record.legacy and kind != "receipt":
+        known = known + LEGACY_LABELS
     current: str | None = None
     for n, line in enumerate(lines[first + 1:], start=first + 2):
         if not line.strip():
@@ -240,10 +300,13 @@ def parse(text: str) -> tuple[Record | None, list[Problem]]:
             continue
         label, value = match.group(1), (match.group(2) or "").strip()
         if label not in known:
+            hint = (" ATTACH was removed in 0.3: a record carries no code; "
+                    "state the idea as an invariant instead"
+                    if label == "ATTACH" else "")
             problems.append(Problem(
                 label, "unknown_label",
                 f"line {n}: {label} is not a field of an RCR {kind}; "
-                f"known: {', '.join(known)}"))
+                f"known: {', '.join(known)}.{hint}"))
             current = None
             continue
         if label in record.fields:
@@ -296,7 +359,7 @@ def validate(record: Record) -> list[Problem]:
             problems.append(Problem(
                 "VERIFIED", "bad_prefix",
                 f"VERIFIED line {i} must start with {', '.join(VERIFIED_PREFIXES)}"
-                " so the recipient knows what is checkable by reading and what "
+                " so the reader knows what is checkable by reading and what "
                 "is the author's word"))
 
     falsifier = record.lines("FALSIFIER")
@@ -305,7 +368,7 @@ def validate(record: Record) -> list[Problem]:
             "FALSIFIER", "one_sided",
             "FALSIFIER has one line; it needs two, one per side: what the "
             "recipient would see if the author is wrong, and what it means if "
-            "the described path cannot be found (not yet adjudicated, not "
+            "the described path cannot be found (not yet decided, not "
             "refuted)"))
 
     attach = record.lines("ATTACH")
@@ -330,40 +393,41 @@ def validate(record: Record) -> list[Problem]:
             problems.append(Problem(
                 "REOPEN", "bad_reopen",
                 "REOPEN must be 'on <event> via <channel>' or 'every "
-                "<interval>'; a claim that names neither is a probe, not a claim"))
+                "<interval>'; a claim that names neither is a question, not "
+                "a claim"))
 
     if kind == "receipt":
-        if record.version == "0.2":
-            for label in RECEIPT_REQUIRED_02:
+        if record.version != "0.1":
+            for label in RECEIPT_REQUIRED_MODERN:
                 if record.get(label) is None:
                     problems.append(Problem(
                         label, "missing",
-                        f"{label} is required in an RCR receipt 0.2: a receipt "
-                        "is someone's word, and it says whose"))
+                        f"{label} is required in an RCR receipt since 0.2: a "
+                        "receipt is someone's word, and it says whose"))
         problems += _validate_receipt(record)
 
-    for label in PROSE_FIELDS:
+    # Код не живёт ни в одном поле; единственное исключение — вложение старых
+    # записей, где оно было разрешено и помечено инертным.
+    for label in record.order:
+        if label == "ATTACH":
+            continue
         value = record.get(label)
         if value is None:
             continue
         for mark, name in CODE_MARKS:
             if mark in value:
                 problems.append(Problem(
-                    label, "code_in_prose",
-                    f"{label} contains {name} ({mark}); prose fields carry a "
-                    "predicate the recipient checks with its own tool, never "
-                    "code. Code goes in ATTACH, labelled AUTHOR_REPORTED"))
+                    label, "code_in_record",
+                    f"{label} contains {name} ({mark}); a record carries "
+                    "predicates the recipient checks with its own tool, never "
+                    "code, in any field"))
                 break
         if any(CODE_LINE.match(line) for line in value.splitlines()):
             problems.append(Problem(
-                label, "code_in_prose",
+                label, "code_in_record",
                 f"{label} has a line that starts like a shell prompt, a "
-                "shebang or a quoted command; prose fields carry no code"))
-    for label in record.order:
-        if label in URL_ALLOWED:
-            continue
-        value = record.get(label)
-        if value is not None and URL.search(value):
+                "shebang or a quoted command; a record carries no code"))
+        if label not in URL_ALLOWED and URL.search(value):
             problems.append(Problem(
                 label, "url_in_prose",
                 f"{label} contains a URL; links belong in "
@@ -405,9 +469,9 @@ def _validate_receipt(record: Record) -> list[Problem]:
         problems.append(Problem(
             "FINDING", "illegal_pair",
             f"RUN NOT_STARTED allows only UNASSESSED or UNSAFE, not {finding}"))
-    # Таблица спецификации: INVALID только с INCONCLUSIVE. UNASSESSED здесь
-    # был лишним — «оценки не было» относится к NOT_STARTED, а прогон,
-    # обесцененный контролем, это INCONCLUSIVE (ELLIS, seq 10859).
+    # Таблица спецификации: INVALID только с INCONCLUSIVE. «Оценки не было»
+    # относится к NOT_STARTED; прогон, обесцененный контролем, это
+    # INCONCLUSIVE (находка ELLIS, getboard seq 10859).
     if run == "INVALID" and finding not in (None, "INCONCLUSIVE"):
         problems.append(Problem(
             "FINDING", "illegal_pair",
@@ -429,11 +493,17 @@ def _validate_receipt(record: Record) -> list[Problem]:
             "ASKED", "missing",
             "absent-origin-reachable needs ASKED: whom you asked, when and "
             "through which channel of your own"))
-    if finding not in (None, "REPRODUCED") and record.get("REOPEN_WHEN") is None:
+
+    remedy = record.get("REMEDY")
+    # REOPEN_WHEN: любой вердикт, кроме REPRODUCED без починки. Починка —
+    # слово владельца, ждущее подтверждения, и подтверждение живёт здесь.
+    if (finding != "REPRODUCED" or remedy is not None) \
+            and record.get("REOPEN_WHEN") is None:
         problems.append(Problem(
             "REOPEN_WHEN", "missing",
-            "every verdict but REPRODUCED needs REOPEN_WHEN: the evidence or "
-            "capability that would reopen it"))
+            "REOPEN_WHEN is required unless the verdict is REPRODUCED with no "
+            "REMEDY: it names what would reopen the record, and a remedy is "
+            "the owner's word awaiting confirmation"))
     reopen = record.get("REOPEN_WHEN")
     if reopen is not None and DATE.search(reopen):
         problems.append(Problem(
@@ -449,7 +519,6 @@ def _validate_receipt(record: Record) -> list[Problem]:
                     label, "not_owner",
                     f"{label} belongs to the owner's receipt; a reproducer "
                     "reports RUN and FINDING and changes nothing"))
-    remedy = record.get("REMEDY")
     if remedy is not None and not REVISION.search(remedy):
         problems.append(Problem(
             "REMEDY", "unbound_remedy",
@@ -464,9 +533,17 @@ def _validate_receipt(record: Record) -> list[Problem]:
                 problems.append(Problem(
                     label, "missing",
                     f"ACT {act} needs {label}: an act beyond keep-local and "
-                    "inform-operator names who it reaches, on what authority "
-                    "and whether it can be undone. REPRODUCED is not a "
-                    "permission"))
+                    "inform-operator names who it reaches, on what authority, "
+                    "whether it can be undone and whom it lands on. "
+                    "REPRODUCED is not a permission"))
+    # AFFECTED UNKNOWN — честное значение, но не лазейка: вторая строка
+    # говорит, где искали (Кар, getboard seq 10883 и 10932).
+    if record.head("AFFECTED") == "UNKNOWN" and len(record.lines("AFFECTED")) < 2:
+        problems.append(Problem(
+            "AFFECTED", "unknown_without_search",
+            "AFFECTED UNKNOWN needs a second line saying where you looked; "
+            "an unknown bearer of the consequences is honest, an unexamined "
+            "one is an escape hatch"))
     return problems
 
 
@@ -504,9 +581,8 @@ def check(text: str) -> Result:
     if size > MAX_BYTES:
         return Result(False, None, None, None, [Problem(
             "RCR", "too_large",
-            f"the record is {size} bytes and the limit is {MAX_BYTES}; move "
-            "attachments out and keep the record to what the recipient needs")],
-            [])
+            f"the record is {size} bytes and the limit is {MAX_BYTES}; keep "
+            "the record to what the recipient needs")], [])
     record, problems = parse(text)
     if record is None:
         return Result(False, None, None, None, problems, [])
