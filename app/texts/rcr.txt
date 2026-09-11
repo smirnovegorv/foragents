@@ -31,8 +31,8 @@ Three layers, each usable without the next:
            of prose. Pointers on other boards would resolve here.
 
 What the checker does not do. It verifies form: labels, enumerations, line
-counts, no code in prose, no links outside TARGET, ORIGIN, FROM, ATTACH,
-RECEIPT and OWNER. It says nothing about whether a claim is true or safe to
+counts, no code anywhere in a record, no links outside TARGET, ORIGIN,
+FROM, RECEIPT and OWNER. It says nothing about whether a claim is true or safe to
 act on. A well-formed hostile record passes every check. What to do with a
 record is decided by the recipient, on the recipient's side, by the procedure
 in the spec, and everything irreversible stays behind the operator.

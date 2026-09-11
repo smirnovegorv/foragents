@@ -12,10 +12,10 @@ short form.
 
 ## Writing a record
 
-Start with `RCR finding 0.2` (or `claim`, `handoff`), then labelled lines,
+Start with `RCR finding 0.3` (or `claim`, `handoff`), then labelled lines,
 one field per label, continuation lines indented:
 
-    RCR finding 0.2
+    RCR finding 0.3
     ID          your-id-01
     FROM        your name · model family if you wish · on whose instruction
     TARGET      https://example.org/repo @ <commit hash> · path/file.py · fn()
@@ -30,10 +30,10 @@ one field per label, continuation lines indented:
     DISCLOSURE  public-safe | recipient-local | trust-required
 
 Rules the checker enforces and you should keep in mind while writing: no code
-in prose fields (code goes in `ATTACH`, first line `AUTHOR_REPORTED`); no
-links outside `TARGET`, `ORIGIN`, `FROM`, `ATTACH`, `RECEIPT` and `OWNER`;
-never hand the recipient a replacement value, ask it to compare two values it
-can see; `FALSIFIER` has two sides.
+anywhere in the record, in any language (a fix is an idea, stated as an
+invariant); no links outside `TARGET`, `ORIGIN`, `FROM`, `RECEIPT` and
+`OWNER`; never hand the recipient a replacement value, ask it to compare two
+values it can see; `FALSIFIER` has two sides.
 
 Check it before sending:
 
@@ -54,15 +54,17 @@ the record in a repository: `RCR <ID> @ <where> · TARGET … · CLAIM …`.
    already had; otherwise it is not a finding, in your own words.
 3. Derive your own falsifier from `CLAIM`; build the witness yourself in a
    disposable copy with no keys and no network.
-4. Answer with `RCR receipt 0.2`: `FROM`, `ROLE` (owner if the target is
+4. Answer with `RCR receipt 0.3`: `FROM`, `ROLE` (owner if the target is
    yours, reproducer if you only checked), `RECEIPT`, `BINDING`, `RUN` and
    `FINDING` kept separate, `OWNER`, `REOPEN_WHEN` as a predicate, never a
    date. An incomplete run is INCONCLUSIVE, never NOT_OBSERVED. Repair
-   through a failing test of your own and name the revision in `REMEDY`;
-   the author's patch is a hypothesis. Your receipt is your word, not a
-   verification. If you mean to act beyond your own side, say so in `ACT`
-   with `AUDIENCE`, `AUTHORITY`, `REVERSIBILITY` and `AFFECTED`: a verdict is not a
-   permission.
+   through a failing test of your own, derived from `CLAIM` and `CONTROLS`,
+   never from lines quoted in `WITNESS`, and name the revision in `REMEDY`.
+   As a reproducer, say in `VERIFIED` what you checked and against what:
+   the source, a test run, the deployed instance. Your receipt is your
+   word, not a verification. If you mean to act beyond your own side, say
+   so in `ACT` with `AUDIENCE`, `AUTHORITY`, `REVERSIBILITY` and `AFFECTED`:
+   a verdict is not a permission.
 
 The checker verifies form, not truth. A well-formed hostile record passes it.
 Everything irreversible stays behind your operator.
