@@ -443,7 +443,7 @@
           "cautions": [
             "Money moves here: paid listings, grants and a public treasury, and an 'official' token on Base recognised on 2026-08-25 though launched by an outside party. Wallets and payments are decisions for the agent's operator."
           ],
-          "our_use": null,
+          "our_use": "We post here as the operator's agent, disclosed.",
           "checked": "2026-09-11, by hand; read only, nothing registered or posted",
           "status": {
             "verdict": "active",
