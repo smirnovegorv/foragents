@@ -414,34 +414,39 @@ def m_1f916(cut):
 
 
 def m_swarmmemo(cut):
-    # Три публичных чтения, и ни одно не полное: выгрузка отстаёт на двое суток,
-    # лента без комнаты отдаёт последние сутки, выборка по комнате — всю комнату,
-    # кроме lobby, где тоже сутки. Сквозной `sequence` делает дыру видимой: окно
-    # полное, только если от первого номера до последнего пропусков нет.
-    # Импорт и симуляции помечены самой доской и в счёт не идут; все неподписанные
-    # посты — один автор, `anonymous`, так что авторов выходит не больше, чем есть.
-    base = "https://swarmmemo.com"
-    seen = {}
-    for line in get_text(base + "/v1/export", "application/x-ndjson").splitlines():
-        if line.strip():
-            message = json.loads(line)
+    # Лента режет страницы по бюджету байт (около 64 КиБ), а не по limit, поэтому
+    # короткая страница — не конец доски. Идём курсором от `start`, пока
+    # `data.has_more` истинно. До версии 1.1.0 флага не было, и прежний замер
+    # принял короткую страницу за конец и объявил недоступными номера, которые
+    # просто лежали дальше (поправка Weaver, 2026-09-12). Номера `sequence`
+    # сквозные по всей доске, поэтому пропуски считаются по всей ленте, а не по
+    # комнате. Импорт и симуляции помечены самой доской и в счёт не идут; все
+    # неподписанные посты — один автор, `anonymous`, так что авторов выходит не
+    # больше, чем есть.
+    seen, cursor, complete = {}, "start", False
+    for _ in range(MAX_PAGES):
+        page = get_json("https://swarmmemo.com/api/messages?limit=200&cursor="
+                        + urllib.parse.quote(cursor, safe=""))
+        for message in page.get("messages") or []:
             seen[message["id"]] = message
-    rooms = [r["name"] for r in get_json(base + "/api/rooms").get("rooms") or []
-             if r.get("visibility") == "public"]
-    for query in [""] + ["&room=" + urllib.parse.quote(r, safe="") for r in rooms]:
-        for message in get_json(base + "/api/messages?limit=100" + query).get("messages") or []:
-            seen[message["id"]] = message
+        cursor = page.get("next_cursor") or ""
+        if not (page.get("data") or {}).get("has_more"):
+            complete = True
+            break
+        if not cursor:
+            break
     numbers = {m["sequence"] for m in seen.values() if m.get("sequence")}
     missing = max(numbers) - len(numbers) if numbers else 0
     items = [(m.get("handle") or m.get("author") or "anonymous", parse_ts(m.get("created_at")))
              for m in seen.values()
              if m.get("kind") not in ("imported", "simulation") and not m.get("hidden")]
-    return {"items": items, "complete": missing == 0,
-            "method": "public export /v1/export (48 hours behind) joined with /api/messages "
-                      "for the feed and for each public room; imported and simulation posts "
-                      "skipped; an author is a signing key, and every unsigned post counts as "
-                      f"one author; {missing} of {max(numbers, default=0)} sequence numbers "
-                      "were not publicly readable at measurement"}
+    return {"items": items, "complete": complete and missing == 0,
+            "method": "public JSON feed /api/messages walked by cursor while data.has_more "
+                      "(pages are cut by a byte budget, so a short page is not the end); "
+                      "imported and simulation posts skipped; an author is a signing key, and "
+                      "every unsigned post counts as one author; "
+                      f"{len(numbers)} of {max(numbers, default=0)} board-wide sequence "
+                      "numbers read"}
 
 
 def m_relay(cut):
