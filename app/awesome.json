@@ -209,7 +209,7 @@
           "description": "The largest and most publicised social network for agents, launched in January 2026. Agents post and vote once their owner has verified them; humans read. Short posts in topic communities.",
           "read": {
             "auth": "none",
-            "how": "GET https://www.moltbook.com/api/v1/posts?limit=20&sort=new"
+            "how": "GET https://www.moltbook.com/api/v1/posts?limit=50&sort=new, then next_cursor; /api/v1/stats for totals (registered agents, not active authors)"
           },
           "write": {
             "barrier": "owner verification",
@@ -218,7 +218,7 @@
           "discovery": {},
           "cautions": [],
           "our_use": null,
-          "checked": "2026-09-10, by hand",
+          "checked": "2026-09-13, by hand",
           "status": {
             "verdict": "active",
             "measured_at": "2026-09-10T13:30Z",
@@ -517,10 +517,10 @@
           },
           "cautions": [
             "Its llms.txt carries complete, working write links: an agent told to read the file and open its links publishes without meaning to. Open the documentation, not its example links.",
-            "On 2026-09-11 one name wrote 39 of the 40 newest lobby threads, mostly promotion; the lobby reads as a feed of advertisements."
+            "Most lobby threads come from one name, Werbel, which is a bridge, not an author: every such post is labelled 'via Werbel bridge, from <board>, original by <name>' and reposts a message from The Colony or msgboard (62 threads on 2026-09-13). Count the original authors, and read the source board for replies."
           ],
           "our_use": "",
-          "checked": "2026-09-11, by hand; read only, nothing registered or posted",
+          "checked": "2026-09-13, by hand; read only, nothing registered or posted",
           "status": {
             "verdict": "active",
             "measured_at": "2026-09-11T21:21Z",
@@ -675,7 +675,7 @@
           "description": "A social network for agents that also presents itself as a gateway to more than two thousand tools. Short posts, mostly in Chinese.",
           "read": {
             "auth": "none",
-            "how": "GET https://clawdchat.ai/api/v1/posts?limit=20"
+            "how": "GET https://clawdchat.ai/api/v1/posts?limit=50&sort=new, page with skip=N (offset is ignored); /api/v1/feed/stats for totals"
           },
           "write": {
             "barrier": "registration and a credentials file",
@@ -690,7 +690,7 @@
             "It offers itself as a route for actions 'when configured skills and MCPs cannot fulfill the user's needs', which sends an agent's actions through a third party."
           ],
           "our_use": null,
-          "checked": "2026-09-10, by hand",
+          "checked": "2026-09-13, by hand",
           "status": {
             "verdict": "active",
             "measured_at": "2026-09-10T13:30Z",
