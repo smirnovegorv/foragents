@@ -56,6 +56,10 @@ MAX_PAGES = 40
 PAUSE = 0.35
 UTC = datetime.timezone.utc
 EPOCH = datetime.datetime(1970, 1, 1, tzinfo=UTC)
+# Ключи, которые ведёт оператор SwarmMemo, по его раскрытию (сообщения 260 и 263):
+# сам Weaver, куратор архива и лабораторная пара, показывающая координацию работ.
+# Посаженные персоны сверх того узнаются по профилю.
+SWARMMEMO_OPERATOR_HANDLES = {"weaver", "archive-curator", "sim-lab-requester", "sim-lab-worker"}
 
 
 # --------------------------------------------------------------------------
@@ -240,7 +244,9 @@ def m_moltbook(cut):
             complete = True
             break
     return {"items": items, "complete": complete,
-            "method": "public JSON, newest posts first"}
+            "method": "public JSON, newest posts first; a lower bound: a post can be verified "
+                      "and answered yet absent from every listing (reported on the board "
+                      "2026-09-14), so the feed does not show all posts"}
 
 
 def m_agent_board_github(cut):
@@ -319,26 +325,27 @@ def m_botnet(cut):
 
 
 def m_clawdchat(cut):
-    items, offset, complete, seen = [], 0, False, set()
+    # Листать — параметром `skip`. `offset` площадка молча игнорирует и отдаёт
+    # верх ленты при любом значении; прежний замер ходил по `offset`, видел одну
+    # страницу и объявлял окно неполным. Повтор уже виденных постов — всё ещё
+    # признак того, что пагинация перестала работать, а не конец ленты.
+    items, skip, complete, seen = [], 0, False, set()
     for _ in range(MAX_PAGES):
-        data = get_json(f"https://clawdchat.ai/api/v1/posts?limit=50&sort=new&offset={offset}")
+        data = get_json(f"https://clawdchat.ai/api/v1/posts?limit=50&sort=new&skip={skip}")
         fresh = [p for p in data.get("posts") or [] if p.get("id") not in seen]
         if seen and not fresh:
-            # Площадка отдаёт ту же страницу при любом смещении: пагинации
-            # нет, виден только верх ленты. Это неполное окно, а не конец
-            # ленты — первая версия замера перепутала одно с другим.
             break
         page = fresh
         seen |= {p.get("id") for p in page}
         items += [(pick(p, "author.name", "author.id"), parse_ts(p.get("created_at")))
                   for p in page]
-        offset += 50
+        skip += 50
         oldest = items[-1][1] if items else None
         if not page or not data.get("has_more") or (oldest and oldest < cut):
             complete = True
             break
     return {"items": items, "complete": complete,
-            "method": "public JSON posts sorted by newest; the API returns the same page for any offset, so only the newest page is visible"}
+            "method": "public JSON posts sorted by newest, paged with skip (offset is ignored)"}
 
 
 def m_waystation(cut):
@@ -420,9 +427,17 @@ def m_swarmmemo(cut):
     # принял короткую страницу за конец и объявил недоступными номера, которые
     # просто лежали дальше (поправка Weaver, 2026-09-12). Номера `sequence`
     # сквозные по всей доске, поэтому пропуски считаются по всей ленте, а не по
-    # комнате. Импорт и симуляции помечены самой доской и в счёт не идут; все
-    # неподписанные посты — один автор, `anonymous`, так что авторов выходит не
-    # больше, чем есть.
+    # комнате. Импорт и симуляции помечены самой доской и в счёт не идут.
+    #
+    # Вторая поправка Weaver (сообщение 263, 2026-09-13): в неделю попадали ключи,
+    # которые ведёт сам оператор доски, — Weaver, куратор архива и
+    # демонстрационные аккаунты, и все неподписанные посты шли одним автором,
+    # отчего доля тройки мерила анонимность, а не сосредоточенность. Теперь
+    # автор — ключ (`author`), а не имя: у одного ключа имя бывает не на каждом
+    # посте. Неподписанные посты считаются постами, но не авторами, как на
+    # getpostingboard, и их доля печатается в методе. Ключи оператора доски
+    # отсекаются по его собственному раскрытию: имена из OPERATOR_HANDLES и
+    # профили, где сказано, что аккаунт посажен оператором.
     seen, cursor, complete = {}, "start", False
     for _ in range(MAX_PAGES):
         page = get_json("https://swarmmemo.com/api/messages?limit=200&cursor="
@@ -435,16 +450,39 @@ def m_swarmmemo(cut):
             break
         if not cursor:
             break
+    operator_keys, agents_cursor = set(), ""
+    for _ in range(MAX_PAGES):
+        page = get_json("https://swarmmemo.com/api/agents?limit=50"
+                        + ("&cursor=" + urllib.parse.quote(agents_cursor, safe="") if agents_cursor else ""))
+        for agent in page.get("agents") or []:
+            profile = json.dumps(agent.get("profile") or {}).lower()
+            if agent.get("handle") in SWARMMEMO_OPERATOR_HANDLES or "seeded by the swarmmemo operator" in profile:
+                operator_keys.add(agent.get("id"))
+        agents_cursor = page.get("next_cursor") or (page.get("data") or {}).get("next_cursor") or ""
+        if not agents_cursor:
+            break
     numbers = {m["sequence"] for m in seen.values() if m.get("sequence")}
     missing = max(numbers) - len(numbers) if numbers else 0
-    items = [(m.get("handle") or m.get("author") or "anonymous", parse_ts(m.get("created_at")))
-             for m in seen.values()
-             if m.get("kind") not in ("imported", "simulation") and not m.get("hidden")]
+    items, unsigned, operator = [], 0, 0
+    cut_ts = cut.timestamp()
+    for m in seen.values():
+        if m.get("kind") in ("imported", "simulation") or m.get("hidden"):
+            continue
+        when = parse_ts(m.get("created_at"))
+        key = m.get("author") if m.get("author") not in (None, "", "anonymous") else None
+        if key in operator_keys:
+            operator += bool(when and when.timestamp() >= cut_ts)
+            continue
+        unsigned += key is None and bool(when and when.timestamp() >= cut_ts)
+        items.append((key, when))
+    inside = sum(1 for _, t in items if t and t.timestamp() >= cut_ts)
     return {"items": items, "complete": complete and missing == 0,
             "method": "public JSON feed /api/messages walked by cursor while data.has_more "
                       "(pages are cut by a byte budget, so a short page is not the end); "
-                      "imported and simulation posts skipped; an author is a signing key, and "
-                      "every unsigned post counts as one author; "
+                      "imported and simulation posts skipped; keys the board's operator runs "
+                      f"(its own disclosure: Weaver, the curator, demonstration accounts) skipped, "
+                      f"{operator} posts in the window; an author is a signing key, unsigned posts "
+                      f"count as posts but not authors: {unsigned} of {inside} in the window; "
                       f"{len(numbers)} of {max(numbers, default=0)} board-wide sequence "
                       "numbers read"}
 
