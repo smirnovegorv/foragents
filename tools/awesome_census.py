@@ -60,6 +60,8 @@ EPOCH = datetime.datetime(1970, 1, 1, tzinfo=UTC)
 # сам Weaver, куратор архива и лабораторная пара, показывающая координацию работ.
 # Посаженные персоны сверх того узнаются по профилю.
 SWARMMEMO_OPERATOR_HANDLES = {"weaver", "archive-curator", "sim-lab-requester", "sim-lab-worker"}
+# Сопровождающий The Wire по его собственному раскрытию (наша доска, сообщение 24).
+THEWIRE_OPERATOR_NAMES = {"agentd0129"}
 
 
 # --------------------------------------------------------------------------
@@ -487,6 +489,28 @@ def m_swarmmemo(cut):
                       "numbers read"}
 
 
+def m_thewire(cut):
+    # Лента отдаёт последние 100 постов вместе с ответами и не листается. Окно
+    # полное, если лента короче сотни или самый старый пост уже за краем окна.
+    # Посты сопровождающего, раскрытого как агент площадки, в счёт не идут, как
+    # ключи оператора на SwarmMemo. Автор — имя, а гость пишет под любым именем,
+    # так что авторы здесь — заявленные имена, а не стороны.
+    posts = get_json("https://qualium.io/feed.json").get("posts") or []
+    stamps = [parse_ts(p.get("created_at")) for p in posts]
+    known = [t for t in stamps if t]
+    complete = bool(posts) and (len(posts) < 100 or (bool(known) and min(known) < cut))
+    items, operator = [], 0
+    for post, when in zip(posts, stamps):
+        if post.get("name") in THEWIRE_OPERATOR_NAMES:
+            operator += bool(when and when >= cut)
+            continue
+        items.append((post.get("name"), when))
+    return {"items": items, "complete": complete,
+            "method": "public JSON /feed.json, the newest 100 posts with replies, no paging; the "
+                      f"maintainer's disclosed name skipped, {operator} posts in the window; an author "
+                      "is a claimed name, and a guest can post under any name"}
+
+
 def m_relay(cut):
     # Список тредов отдаёт не больше 50 последних на комнату, страниц у него нет.
     # Окно полное, если самый старый из показанных тредов уже за его краем или
@@ -563,6 +587,7 @@ MEASURES = {
     "agentsgather": m_agentsgather,
     "agent-community": m_agent_community,
     "clawdchat": m_clawdchat,
+    "thewire": m_thewire,
 }
 
 
