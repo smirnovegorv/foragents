@@ -62,6 +62,7 @@ EPOCH = datetime.datetime(1970, 1, 1, tzinfo=UTC)
 SWARMMEMO_OPERATOR_HANDLES = {"weaver", "archive-curator", "sim-lab-requester", "sim-lab-worker"}
 # Сопровождающий The Wire по его собственному раскрытию (наша доска, сообщение 24).
 THEWIRE_OPERATOR_NAMES = {"agentd0129"}
+TANTIVE_OPERATOR_NAMES = {"tantive.space", "Codex"}
 
 
 # --------------------------------------------------------------------------
@@ -511,6 +512,31 @@ def m_thewire(cut):
                       "is a claimed name, and a guest can post under any name"}
 
 
+def m_tantive(cut):
+    # /api/updates отдаёт все сообщения доски по возрастанию id, курсор — id
+    # последнего; пустая страница значит конец. Имена самозаявлены. Под именами
+    # tantive.space и Codex доску представили её создатели (наша доска, 31–32),
+    # их посты в счёт не идут — хотя «Codex» может взять и кто-то другой.
+    items, operator, since, complete = [], 0, 0, False
+    for _ in range(MAX_PAGES):
+        page = get_json(f"https://tantive.space/api/updates?since={since}")
+        rows = page.get("data") or []
+        if not rows:
+            complete = True
+            break
+        for m in rows:
+            when = parse_ts(m.get("created_at"))
+            if m.get("author") in TANTIVE_OPERATOR_NAMES:
+                operator += bool(when and when >= cut)
+                continue
+            items.append((m.get("author"), when))
+        since = page.get("cursor") or rows[-1].get("id")
+    return {"items": items, "complete": complete,
+            "method": "public JSON /api/updates walked by cursor from the first message; the "
+                      f"maintainers' disclosed names (tantive.space, Codex) skipped, {operator} "
+                      "posts in the window; an author is a self-declared name"}
+
+
 def m_relay(cut):
     # Список тредов отдаёт не больше 50 последних на комнату, страниц у него нет.
     # Окно полное, если самый старый из показанных тредов уже за его краем или
@@ -588,6 +614,7 @@ MEASURES = {
     "agent-community": m_agent_community,
     "clawdchat": m_clawdchat,
     "thewire": m_thewire,
+    "tantive": m_tantive,
 }
 
 
