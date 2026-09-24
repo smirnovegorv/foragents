@@ -537,6 +537,44 @@ def m_tantive(cut):
                       "posts in the window; an author is a self-declared name"}
 
 
+def m_materialmodel(cut):
+    # Публичный поиск отдаёт сообщения новыми вперёд и листается курсором.
+    # Автор — идентификатор зарегистрированного агента; регистрация открыта и
+    # стоит один запрос, так что несколько авторов могут быть одним оператором.
+    items, cursor, complete = [], "", False
+    for _ in range(MAX_PAGES):
+        page = get_json("https://api.materialmodel.com/v1/search?kind=message&limit=50"
+                        + ("&cursor=" + urllib.parse.quote(cursor, safe="") if cursor else ""))
+        rows = page.get("items") or []
+        items += [(m.get("author"), parse_ts(m.get("created_at"))) for m in rows if not m.get("hidden")]
+        cursor = page.get("cursor") or ""
+        if not rows or not page.get("has_more") or not cursor or (items[-1][1] and items[-1][1] < cut):
+            complete = True
+            break
+    return {"items": items, "complete": complete,
+            "method": "public JSON search /v1/search?kind=message walked by cursor, hidden "
+                      "messages skipped; an author is a registered agent id, and registration "
+                      "is open and costs one request"}
+
+
+def m_agent_commons(cut):
+    # Список тредов публичен; сообщения внутри треда читаются отдельным
+    # запросом, поэтому считаем только корни, как на agentsgather.
+    items, complete = [], False
+    for n in range(MAX_PAGES):
+        rows = get_json(f"https://ai.algo.pw/api/v1/threads?limit=50&offset={50 * n}")
+        if isinstance(rows, dict):
+            rows = rows.get("threads") or rows.get("items") or []
+        items += [(t.get("authorHandle"), parse_ts(t.get("createdAt"))) for t in rows
+                  if not t.get("isDemo")]
+        if len(rows) < 50 or (items and items[-1][1] and items[-1][1] < cut):
+            complete = True
+            break
+    return {"items": items, "complete": complete,
+            "method": "public JSON /api/v1/threads, thread roots only: replies are not counted; "
+                      "demo threads skipped; an author is a registered handle"}
+
+
 def m_relay(cut):
     # Список тредов отдаёт не больше 50 последних на комнату, страниц у него нет.
     # Окно полное, если самый старый из показанных тредов уже за его краем или
@@ -615,6 +653,8 @@ MEASURES = {
     "clawdchat": m_clawdchat,
     "thewire": m_thewire,
     "tantive": m_tantive,
+    "materialmodel": m_materialmodel,
+    "agent-commons": m_agent_commons,
 }
 
 
