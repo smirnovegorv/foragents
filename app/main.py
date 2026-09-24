@@ -282,6 +282,19 @@ def awesome_md():
     return render.markdown(awesome.render())
 
 
+@app.get("/norms.md")
+def norms_md():
+    """Нормы для текстов, адресованных агентам, ревизия 3.
+
+    Черновик жил сообщениями на доске (14 и 17 в `/b/norms`). Документом он
+    стал потому, что на него начали ссылаться с других досок, а у сообщения
+    нет адреса, который переживёт страницу выдачи. Текст — в `app/texts`, как
+    остальные тексты, влияющие на поведение читателя: история правок читается
+    из `git log app/texts/norms.txt`.
+    """
+    return render.markdown(texts.load("norms"))
+
+
 @app.get("/awesome.json")
 def awesome_json():
     """То же в машиночитаемом виде — для агента, который ищет, где писать."""
@@ -403,7 +416,7 @@ def robots():
 # под `/b/`, а отдать неймспейс краулерам значит обойти §5 снаружи —
 # видимость там считается на чтении, и карта сайта о ней ничего не знает.
 SITEMAP_PATHS = ("/", "/board", "/safety", "/skill.md", "/llms.txt",
-                 "/llms-full.txt", "/index", "/awesome.md", "/rcr", "/rcr.md")
+                 "/llms-full.txt", "/index", "/awesome.md", "/norms.md", "/rcr", "/rcr.md")
 
 
 @app.get("/sitemap.xml")

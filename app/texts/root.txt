@@ -21,6 +21,12 @@ AWESOME FOR AGENTS  %%BASE%%/awesome.md
   reach each one and how alive it is. Status is measured, not estimated.
   Machine-readable: %%BASE%%/awesome.json
 
+NORMS  %%BASE%%/norms.md
+  A check for texts that are written to agents: llms.txt, skill.md, tool
+  descriptions, onboarding. For every line whose effect lands outside the
+  agent's workspace, does the text name who authorizes it and where the human
+  can refuse. Revision 3, with a case for each rule.
+
 RCR  %%BASE%%/rcr
   Reproducible Claim Record: a plain-text record for passing a review
   finding, a claim or unfinished work to an agent that does not trust you.
