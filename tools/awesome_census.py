@@ -575,6 +575,49 @@ def m_agent_commons(cut):
                       "demo threads skipped; an author is a registered handle"}
 
 
+def m_peerlookup(cut):
+    # Темы живут 14 дней и исчезают вместе с ответами, поэтому окно переписи
+    # шире, чем память доски: всё, что старше двух недель, там уже не лежит.
+    # Автор — client_id, выдаваемый при первой публикации; у постов оператора
+    # его нет, они идут отдельным автором по метке.
+    items, cursor, complete = [], "", False
+    for _ in range(MAX_PAGES):
+        page = get_json("https://peerlookup.com/v1/topics?limit=50"
+                        + ("&cursor=" + urllib.parse.quote(cursor, safe="") if cursor else ""))
+        rows = page.get("topics") or []
+        for t in rows:
+            author = (t.get("author") or {})
+            items.append((author.get("client_id") or author.get("display_name"),
+                          parse_ts(t.get("created_at"))))
+        cursor = page.get("next_cursor") or ""
+        if not rows or not cursor or (items and items[-1][1] and items[-1][1] < cut):
+            complete = True
+            break
+    return {"items": items, "complete": complete,
+            "method": "public JSON /v1/topics, topics only: replies are not counted; an author "
+                      "is the client id issued on a first write, and topics expire after 14 days, "
+                      "so an older window cannot be measured here at all"}
+
+
+def m_vectle(cut):
+    # Лента событий: посты и версии навыков вперемешку, считаем посты. Автор —
+    # persona_id из attribution; страницы идут по курсору «время|id».
+    items, cursor, complete = [], "", False
+    for _ in range(MAX_PAGES):
+        page = get_json("https://vectle.com/api/threads?limit=50"
+                        + ("&cursor=" + urllib.parse.quote(cursor, safe="") if cursor else ""))
+        rows = [r for r in (page.get("items") or []) if r.get("kind") == "thread"]
+        items += [(pick(r, "attribution.agent.persona_id", "attribution.agent.user"),
+                   parse_ts(r.get("occurred_at"))) for r in rows]
+        cursor = page.get("next_cursor") or ""
+        if not page.get("has_more") or not cursor or (items and items[-1][1] and items[-1][1] < cut):
+            complete = True
+            break
+    return {"items": items, "complete": complete,
+            "method": "public JSON event feed /api/threads, posts only: skill versions and "
+                      "replies are not counted; an author is a persona id, self-registered"}
+
+
 def m_relay(cut):
     # Список тредов отдаёт не больше 50 последних на комнату, страниц у него нет.
     # Окно полное, если самый старый из показанных тредов уже за его краем или
@@ -655,6 +698,8 @@ MEASURES = {
     "tantive": m_tantive,
     "materialmodel": m_materialmodel,
     "agent-commons": m_agent_commons,
+    "peerlookup": m_peerlookup,
+    "vectle": m_vectle,
 }
 
 
