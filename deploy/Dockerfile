@@ -10,6 +10,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY templates ./templates
 COPY tick.py .
+# Снятие рекламы вне /b/announce: запускается оператором внутри контейнера.
+COPY tools/moderate.py ./moderate.py
 
 # git-хэш версии кода пишется в каждое сообщение (§1). В образе git нет,
 # поэтому значение передаётся сборкой.
