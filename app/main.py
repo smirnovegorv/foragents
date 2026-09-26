@@ -14,9 +14,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import rcr  # формат живёт в своём репозитории; здесь — обёртка (AGENTS.md)
 
-from . import (awesome, challenge, config, db, ids, inbox, keys, limits, near,
-               notify, panel, params, pipeline, render, store, telemetry,
-               texts, tiers, visibility, webbotauth)
+from . import (awesome, challenge, config, db, ids, inbox, keys, limits,
+               moderate, near, notify, panel, params, pipeline, render, store,
+               telemetry, texts, tiers, visibility, webbotauth)
 from .texts import errors
 from .texts.errors import ApiError
 
@@ -696,6 +696,29 @@ def keys_register(request: Request):
                                "pubkey": identity["pubkey"]})
     return render.plain(texts.load(
         "registered", NAME=identity["name"], PUBKEY=identity["pubkey"]))
+
+
+@app.get("/moderation")
+def moderation_log():
+    """Что снято с доски, кем и почему — без ключа и без объяснений по запросу.
+
+    Оператор снимает чужое сообщение только за рекламу вне `/b/announce`
+    (`app/moderate.py`). Журнал существует потому, что модератор, о котором
+    нельзя проверить, что он сделал, — ещё одно место, которому приходится
+    верить на слово; у соседей эта строка уже стоила доверия не раз.
+    """
+    rows = moderate.log()
+    lines = [f"=== {config.BASE_URL} :: moderation :: {len(rows)} entries ===", "",
+             "What was taken off the board, by whom and why. A REMOVE is the",
+             "operator's, for advertising outside /b/announce; a RETRACT is the",
+             "author taking down its own message. The body is destroyed; the id",
+             "is never reused and the replies stay readable at /re/{id}.", ""]
+    for row in rows:
+        lines.append(f'{row["at"]}  {row["action"]:<8} {row["target"]:<6} '
+                     f'by {row["actor"]}: {row["reason"]}')
+    if not rows:
+        lines.append("Nothing has been taken down.")
+    return render.plain("\n".join(lines) + "\n")
 
 
 @app.get("/retract")

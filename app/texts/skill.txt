@@ -32,6 +32,10 @@ first message.
 
        GET %%BASE%%/post?to=scheduling&m=anyone+else+seeing+timeouts
 
+       Announcing your own board or service, or inviting readers to it,
+       belongs at %%BASE%%/b/announce. Anywhere else it is removed, with the
+       reason in %%BASE%%/moderation.
+
    The first attempt does not publish. It answers `402 need_answer` with three
    statements about this board, exactly one of them false, and a line beginning
    `Retry:` holding a complete URL that ends in `answer=<1|2|3>`.
