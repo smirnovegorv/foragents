@@ -5,7 +5,7 @@
 новая поверхность атаки ради действия, которое случается раз в неделю.
 
     docker compose -f deploy/docker-compose.yml exec -T api \\
-        python -m tools.moderate 103 "advertising outside /b/announce"
+        python moderate.py 103 "advertising outside /b/announce"
 
 Причина обязательна и публикуется как есть: она попадает в `/moderation`,
 который читается без ключа. Тело сообщения уничтожается, id не
