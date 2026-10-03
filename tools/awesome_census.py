@@ -517,7 +517,31 @@ def m_tantive(cut):
     # последнего; пустая страница значит конец. Имена самозаявлены. Под именами
     # tantive.space и Codex доску представили её создатели (наша доска, 31–32),
     # их посты в счёт не идут — хотя «Codex» может взять и кто-то другой.
-    items, operator, since, complete = [], 0, 0, False
+    #
+    # С первого сообщения этот обход до конца больше не доходит: страница
+    # отдаёт двадцать записей, доска выросла до ~1900 сообщений, и бюджет
+    # страниц кончался на id около 800, то есть на 09-24 — замер 2026-10-03
+    # вынес из этого «dormant» при тридцати свежих тредах за сутки. Поэтому
+    # точку старта ищем делением пополам: самый поздний курсор, чья первая
+    # запись ещё старше окна. Одна страница на пробу, около одиннадцати проб.
+    #
+    # Окно всё равно шире бюджета: за неделю доска пишет больше 800 сообщений,
+    # так что обход покрывает её конец не целиком, и covered_hours это
+    # показывает. Время последней активности поэтому берём не из обхода, а из
+    # ленты тредов — иначе запись читалась бы как «с тех пор тишина».
+    head = get_json("https://tantive.space/api/threads?limit=1")
+    snapshot = head.get("snapshot") or 0
+    newest = next((parse_ts(t.get("last_activity_at")) for t in (head.get("data") or [])), None)
+    lo, hi = 0, snapshot
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        rows = get_json(f"https://tantive.space/api/updates?since={mid}").get("data") or []
+        first = parse_ts(rows[0].get("created_at")) if rows else None
+        if first is not None and first < cut:
+            lo = mid
+        else:
+            hi = mid - 1
+    items, operator, since, complete = [], 0, lo, False
     for _ in range(MAX_PAGES):
         page = get_json(f"https://tantive.space/api/updates?since={since}")
         rows = page.get("data") or []
@@ -531,10 +555,13 @@ def m_tantive(cut):
                 continue
             items.append((m.get("author"), when))
         since = page.get("cursor") or rows[-1].get("id")
-    return {"items": items, "complete": complete,
-            "method": "public JSON /api/updates walked by cursor from the first message; the "
-                      f"maintainers' disclosed names (tantive.space, Codex) skipped, {operator} "
-                      "posts in the window; an author is a self-declared name"}
+    return {"items": items, "complete": complete, "last": newest,
+            "method": "public JSON /api/updates walked by cursor, starting at the newest cursor "
+                      "still older than the window (found by halving); the maintainers' disclosed "
+                      f"names (tantive.space, Codex) skipped, {operator} posts in the window; an "
+                      "author is a self-declared name. The board writes more than the page budget "
+                      "covers, so the walk reaches part of the window and the last activity is "
+                      "read from the thread feed instead"}
 
 
 def m_materialmodel(cut):
@@ -600,6 +627,11 @@ def m_peerlookup(cut):
 
 
 def m_vectle(cut):
+    # Не вызывается с 2026-10-03: /api/threads снят (410), а замена --
+    # /api/v1/search -- публикует запрос замера как публичный пост. Замер, который
+    # пишет на измеряемую доску, мерит уже себя. Оставлено как запись о том,
+    # что здесь работало, пока не появится чисто читающий /api/v1/posts.
+    raise RuntimeError("vectle: reading by search would publish the query")
     # Лента событий: посты и версии навыков вперемешку, считаем посты. Автор —
     # persona_id из attribution; страницы идут по курсору «время|id».
     items, cursor, complete = [], "", False
@@ -699,7 +731,6 @@ MEASURES = {
     "materialmodel": m_materialmodel,
     "agent-commons": m_agent_commons,
     "peerlookup": m_peerlookup,
-    "vectle": m_vectle,
 }
 
 
@@ -713,12 +744,25 @@ def summarise(result: dict, now, cut) -> dict:
     authors = collections.Counter(a for a, _ in inside if a)
     last = result.get("last") or max((t for _, t in stamped), default=None)
     oldest = min((t for _, t in stamped), default=None)
+    newest = max((t for _, t in stamped), default=None)
     if result["complete"] or oldest is None:
         covered = WINDOW_H
     else:
-        covered = min(WINDOW_H, round((now - oldest).total_seconds() / 3600, 1))
+        # Пересечение увиденного с окном, а не «от самого старого до сейчас»:
+        # обход может оборваться и у свежего конца, и тогда вторая формула
+        # отчитывается за часы, которых не видела (tantive, 2026-10-03).
+        seen = (max(oldest, cut), min(newest, now))
+        covered = max(0.0, round((seen[1] - seen[0]).total_seconds() / 3600, 1))
+    method = result["method"]
     if not stamped and last is None:
         verdict = "unmeasured"
+    elif not inside and not result["complete"]:
+        # Обход кончился на бюджете страниц, не дойдя до окна: про доску это
+        # не говорит ничего, и называть это тишиной нельзя.
+        verdict = "unmeasured"
+        method += (f"; the walk ended on the page budget and did not reach the window —"
+                   f" the freshest message it saw is {newest:%Y-%m-%dT%H:%MZ}, so this is"
+                   f" a limit of the census, not quiet on the board")
     elif not inside:
         verdict = "dormant"
     elif len(authors) >= 3 and sum(n for _, n in authors.most_common(3)) < 0.9 * len(inside):
@@ -738,7 +782,7 @@ def summarise(result: dict, now, cut) -> dict:
         "authors": len(authors),
         "top3_share": round(top3 / len(inside), 2) if inside and authors else None,
         "last_activity": last.strftime("%Y-%m-%dT%H:%MZ") if last else None,
-        "method": result["method"],
+        "method": method,
     }
 
 
