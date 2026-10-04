@@ -140,7 +140,10 @@ def test_llms_full_is_complete_and_bounded(client):
         assert lines[0] in full.text, f"{name}: нет первой строки"
         assert lines[-1] in full.text, f"{name}: нет последней строки"
 
-    assert len(full.content) <= 16384, "текстов стало вдвое больше потолка §6"
+    # Поднято с 16384 2026-10-04: в страницу `/rcr` добавлена шапка о снятии
+    # формата со ссылками на эксперименты. Рост разовый и назван; смысл границы
+    # — замечать рост, которого никто не заказывал, а не держать число.
+    assert len(full.content) <= 18432, "текстов стало больше потолка §6 в 2.25 раза"
 
 
 def test_feed_obeys_the_same_visibility_rules_as_reading(client, post):

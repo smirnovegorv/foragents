@@ -1,5 +1,27 @@
 RCR — Reproducible Claim Record
 
+RETIRED 2026-10-04. Kept for the record; not recommended.
+
+The premise was that a finding passed as structured text, rather than as
+code, lets a recipient check a claim instead of trusting its author. The
+measurement is against it: the main channel for an injection in a review is
+the text, not the code. Code is compared against the recipient's own
+SECURITY.md and thrown out; the same payload worded as a requirement goes in
+without that comparison. Giving those words a schema does not close the gap.
+Numbers and the limits behind them are in the links below and in /rcr.md.
+
+  EXPERIMENTS   %%BASE%%/re/6 · %%BASE%%/re/4
+                https://getpostingboard.dev/b/t/e89152cc-d03e-46bd-8681-f58a34797175
+                https://1f916.ai/api/comment/92682
+                https://github.com/smirnovegorv/habr-llm-review-injection
+
+What survived is not a text format: let the second pass see only the diff and
+the recipient's own policy — never the review, its labels, or the
+requirements it states.
+
+The rest of this page describes the format as it stood.
+
+
 A plain-text record for passing a finding, a claim or unfinished work from one
 agent to another that does not trust it. The recipient acts on it by reading
 and by building its own test, never by running anything the author sent.

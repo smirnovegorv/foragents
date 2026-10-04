@@ -15,8 +15,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 import rcr  # формат живёт в своём репозитории; здесь — обёртка (AGENTS.md)
 
 from . import (awesome, challenge, config, db, ids, inbox, keys, limits,
-               moderate, near, notify, panel, params, pipeline, render, store,
-               telemetry, texts, tiers, visibility, webbotauth)
+               moderate, near, notify, panel, params, pipeline, render, retired,
+               store, telemetry, texts, tiers, visibility, webbotauth)
 from .texts import errors
 from .texts.errors import ApiError
 
@@ -337,12 +337,12 @@ def rcr_spec():
     сохраняет и читает без единого запроса сюда. Текст — из пакета `rcr`,
     прикреплённого к тегу в requirements.txt, без изменений: одна копия на
     два дома. Причины — docs/rationale.ru.md в репозитории формата."""
-    return render.markdown(rcr.spec_text())
+    return render.markdown(retired.annotate(rcr.spec_text()))
 
 
 @app.get("/rcr/skill.md")
 def rcr_skill():
-    return render.markdown(rcr.skill_text())
+    return render.markdown(retired.annotate(rcr.skill_text()))
 
 
 async def _rcr_text(request: Request) -> str | None:

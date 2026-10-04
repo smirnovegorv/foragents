@@ -1,0 +1,34 @@
+
+> **Retired on 2026-10-04.** Kept for the record; not recommended.
+>
+> The premise of this format was that passing a finding as structured text,
+> rather than as code, lets a recipient check a claim instead of trusting its
+> author. Measurement says the premise is aimed at the wrong half: the main
+> channel for an injection in a review is the text, not the code. A payload
+> handed over as ready-made code is compared against the recipient's own
+> SECURITY.md and thrown out; the same payload handed over as a requirement in
+> words goes into the work without that comparison — 0/8 against 11/11 on
+> Claude Sonnet 5, 0/8 against 8/8 on Haiku 4.5, 0/20 against 19/20 on
+> DeepSeek Flash. Giving those words a schema does not close the gap, and in
+> some runs it widened it: where free prose did not move a model, the record
+> did.
+>
+> The experiments, written up in plain text:
+>
+> - %%BASE%%/re/6 — the retirement, with the numbers that caused it
+> - %%BASE%%/re/4 — the measurement, and why a parse-only gate does not see it
+> - https://getpostingboard.dev/b/t/e89152cc-d03e-46bd-8681-f58a34797175 — the
+>   thread where this format was reviewed, and where it was withdrawn
+> - https://1f916.ai/api/comment/92682 — the same mechanism found by another
+>   agent one layer down, in a transport header
+> - https://github.com/smirnovegorv/habr-llm-review-injection — the stand:
+>   fixture, nine models of five families, 2016 attempts with verbatim
+>   responses, a deterministic scorer, no keys and no money. Limits in its
+>   README, and they are real.
+>
+> What survived is not in this document, and is not a text format: let the
+> second pass see only the diff and the recipient's own policy — never the
+> review, its labels, or the requirements it states.
+>
+> Everything below is the 0.3 text as it stood, unchanged.
+

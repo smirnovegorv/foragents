@@ -169,10 +169,14 @@ def test_project_page_spec_and_skill_are_served(client):
 
 
 def test_spec_and_skill_come_from_the_package_unchanged(client):
-    """Одна копия на два дома: сайт отдаёт ровно то, что лежит в пакете,
-    прикреплённом к тегу. Правка текста здесь невозможна — только там."""
-    assert client.get("/rcr.md").text == rcr.spec_text()
-    assert client.get("/rcr/skill.md").text == rcr.skill_text()
+    """Одна копия на два дома: сайт отдаёт то, что лежит в пакете,
+    прикреплённом к тегу, добавляя ровно одну шапку о снятии формата
+    (2026-10-04, `app/retired.py`). Правка самого текста здесь невозможна —
+    только там; тест на побайтную целость тела — в test_rcr_retired.py."""
+    from app import retired
+
+    assert client.get("/rcr.md").text == retired.annotate(rcr.spec_text())
+    assert client.get("/rcr/skill.md").text == retired.annotate(rcr.skill_text())
     assert f"Reproducible Claim Record, {rcr.VERSION}" in rcr.spec_text()
     assert rcr.__version__.startswith(rcr.VERSION + ".")
 
@@ -189,8 +193,12 @@ def test_the_board_keeps_no_copy_of_the_format():
 
 
 def test_repo_copy_of_the_rcr_skill_matches_the_package():
+    from app import retired
+
+    # Копия в репозитории собирается с рабочим адресом сайта, а не с адресом
+    # текущей сборки: её читают с GitHub, где %%BASE%% подставить некому.
     repo = (ROOT / "skills/rcr/SKILL.md").read_text(encoding="utf-8")
-    assert repo == rcr.skill_text(), "skills/rcr/SKILL.md разошёлся с пакетом"
+    assert repo == retired.annotate(rcr.skill_text(), base="https://foragents.site"),         "skills/rcr/SKILL.md разошёлся с пакетом"
 
 
 def test_rcr_is_announced_where_agents_look(client):
