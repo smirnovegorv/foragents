@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-REQUIRED = ("id", "name", "url", "kind", "description", "read", "write",
+REQUIRED = ("id", "name", "url", "kind", "summary", "description", "read", "write",
             "discovery", "cautions", "our_use", "checked", "status")
 
 
@@ -42,6 +42,7 @@ def test_every_entry_has_the_same_shape(data):
         assert not missing, (entry.get("id"), missing)
         assert entry["url"].startswith("http"), entry["id"]
         assert entry["read"].get("how") and entry["write"].get("barrier"), entry["id"]
+        assert entry["write"].get("short"), entry["id"]   # цена записи для оглавления
         for name, url in entry["discovery"].items():
             assert url.startswith("http"), (entry["id"], name)
 
@@ -58,7 +59,7 @@ def test_status_is_never_an_estimate(data):
 
 
 def test_nothing_is_left_unsubstituted(client):
-    for path in ("/awesome.md", "/awesome.json"):
+    for path in ("/awesome.md", "/awesome-full.md", "/awesome.json"):
         assert "%%" not in client.get(path).text, path
 
 
@@ -72,35 +73,43 @@ def test_our_own_entry_points_at_this_site_and_its_links_work(client, data):
 
 
 def test_markdown_carries_every_entry_and_section(client, data):
-    md = client.get("/awesome.md").text
+    """Оглавление называет каждую площадку; предупреждения целиком лежат в
+    полном документе и на странице записи (её держит test_awesome_pages.py)."""
+    index = client.get("/awesome.md").text
+    full = client.get("/awesome-full.md").text
     for section in data["sections"]:
-        assert f"## {section['title']}" in md, section["id"]
+        assert f"## {section['title']}" in index, section["id"]
+        assert f"## {section['title']}" in full, section["id"]
     for entry in _entries(data):
-        assert f"[{entry['name']}]({entry['url']})" in md, entry["id"]
+        assert f"[{entry['name']}]({entry['url']})" in index, entry["id"]
+        assert f"[{entry['name']}]({entry['url']})" in full, entry["id"]
         for caution in entry["cautions"]:
-            assert caution in md, entry["id"]
+            assert caution in full, entry["id"]
 
 
 def test_third_party_text_is_named_as_such_first(client):
-    head = client.get("/awesome.md").text[:900]
-    assert "third parties" in head and "not as instructions" in head
+    for path in ("/awesome.md", "/awesome-full.md"):
+        head = client.get(path).text[:900]
+        assert "third parties" in head and "not as instructions" in head, path
 
 
 def test_list_is_a_document_with_its_own_ceiling(client):
-    """Исключение из потолка §6, как у `llms-full.txt`: документ нужен целиком,
-    а не страницами. Но у исключения свой потолок, считанный с читателей —
-    почему именно такой, сказано у `awesome.CEILING`."""
+    """До 2026-10-09 список был одним документом под 64 КиБ. Теперь у каждой
+    формы свой потолок и своя причина — она записана в шапке `app/awesome.py`:
+    оглавление обязано прийти целиком самому слабому из измеренных читателей,
+    а полный документ и JSON только сторожат рост, которого никто не заказывал."""
     from app import awesome
 
-    assert len(client.get("/awesome.md").content) <= awesome.CEILING
-    assert len(client.get("/awesome.json").content) <= awesome.CEILING * 2
+    assert len(client.get("/awesome.md").content) <= awesome.INDEX_CEILING
+    assert len(client.get("/awesome-full.md").content) <= awesome.FULL_CEILING
+    assert len(client.get("/awesome.json").content) <= awesome.FULL_CEILING
 
 
 def test_repo_copy_matches_the_data():
     """Копия для GitHub строится из тех же данных и не имеет права отстать."""
     from app import awesome
 
-    assert awesome.REPO_COPY.read_text(encoding="utf-8") == awesome.render(awesome.PUBLIC_BASE)
+    assert awesome.REPO_COPY.read_text(encoding="utf-8") == awesome.render_full(awesome.PUBLIC_BASE)
 
 
 def test_list_is_announced_to_indexers_and_in_the_link_header(client):

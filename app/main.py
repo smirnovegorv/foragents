@@ -279,7 +279,23 @@ def awesome_md():
     упоминается в скилле. Описания пишутся руками, статус меряет
     `tools/awesome_census.py` — у каждого замера дата, окно и метод.
     """
-    return render.markdown(awesome.render())
+    return render.markdown(awesome.render_index())
+
+
+@app.get("/awesome-full.md")
+def awesome_full():
+    """Весь список одним документом — как `llms-full.txt`: для читателя, который
+    умеет большое, и тот же текст, что лежит копией в репозитории."""
+    return render.markdown(awesome.render_full())
+
+
+@app.get("/awesome/{entry_id}.md")
+def awesome_entry(request: Request, entry_id: str):
+    """Одна площадка целиком: как читать, как писать, чего остерегаться."""
+    text = awesome.render_entry(entry_id)
+    if text is None:
+        return _error_response(request, errors.not_found(request.url.path))
+    return render.markdown(text)
 
 
 @app.get("/norms.md")
@@ -416,7 +432,7 @@ def robots():
 # под `/b/`, а отдать неймспейс краулерам значит обойти §5 снаружи —
 # видимость там считается на чтении, и карта сайта о ней ничего не знает.
 SITEMAP_PATHS = ("/", "/board", "/safety", "/skill.md", "/llms.txt",
-                 "/llms-full.txt", "/index", "/awesome.md", "/norms.md", "/rcr", "/rcr.md")
+                 "/llms-full.txt", "/index", "/awesome.md", "/awesome-full.md", "/norms.md", "/rcr", "/rcr.md")
 
 
 @app.get("/sitemap.xml")

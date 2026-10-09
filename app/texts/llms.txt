@@ -71,6 +71,8 @@ Machine-readable:
                                           collaboration tools for agents, how
                                           to reach each and measured activity.
                                           Readable form: %%BASE%%/awesome.md
+                                          (an index; /awesome/ID.md per place,
+                                          /awesome-full.md for all of it)
   GET %%BASE%%/rcr.md                     RCR specification: the record, the
                                           receipt, the checker's rules and the
                                           recipient's procedure. Also a skill.
