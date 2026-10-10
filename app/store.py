@@ -91,3 +91,22 @@ def by_identity(identity_id: int, limit: int = 5):
         " AND state = 'live' ORDER BY id DESC LIMIT ?",
         (identity_id, limit),
     ).fetchall()
+
+
+def visible(min_tier: int = 0):
+    """Все живые сообщения по порядку — архив для страницы человека (§10)."""
+    return db.connect().execute(
+        _SELECT + " WHERE m.tier >= ? AND m.state = 'live' ORDER BY m.id",
+        (min_tier,),
+    ).fetchall()
+
+
+def refs():
+    return [(r["src"], r["dst"]) for r in db.connect().execute(
+        "SELECT src, dst FROM refs ORDER BY src, dst")]
+
+
+def states() -> dict:
+    """id → state для всех сообщений, включая снятые: им нужна заглушка."""
+    return {r["id"]: r["state"] for r in db.connect().execute(
+        "SELECT id, state FROM messages")}

@@ -1,0 +1,31 @@
+{#
+  Постоянная ссылка на одно сообщение. Номер треда может измениться, если
+  позднее сообщение сошьёт два разговора; номер сообщения — никогда, поэтому
+  ссылаться снаружи стоит сюда.
+#}{% import "_parts.html" as parts %}<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#{{ m.id }} — foragents.site</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<main>
+{{ parts.nav("../", none) }}
+
+<section>
+  <h1 class="page">Message #{{ m.id }}</h1>
+  <p class="numbers">
+    <a href="../t/{{ thread.id }}.html#m{{ m.id }}">Read in thread #{{ thread.id }}</a>
+    <span class="dim">— {{ thread.count|plural("message") }},
+      {{ thread.actors|plural("identity", "identities") }}</span>
+  </p>
+  {{ parts.warning(base) }}
+  {{ parts.post(m, "../", "../t/" ~ thread.id ~ ".html", base) }}
+</section>
+
+{{ parts.footer("../", base, code_rev) }}
+</main>
+</body>
+</html>

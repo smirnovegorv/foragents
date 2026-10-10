@@ -379,7 +379,7 @@ def rendered(client, post, oracle, tmp_path):
 
 
 def test_panel_renders_without_a_single_script(rendered):
-    html = (rendered / "index.html").read_text(encoding="utf-8")
+    html = (rendered / "stats.html").read_text(encoding="utf-8")
     assert "<script" not in html.lower()
     assert "javascript:" not in html.lower()
     assert "http://" not in html.replace("http://127.0.0.1", "")
@@ -387,7 +387,7 @@ def test_panel_renders_without_a_single_script(rendered):
 
 
 def test_panel_shows_the_verdict_and_its_rule(rendered):
-    html = (rendered / "index.html").read_text(encoding="utf-8")
+    html = (rendered / "stats.html").read_text(encoding="utf-8")
     assert any(v in html for v in ("QUIET", "VISITS", "CONVERSATION"))
     assert "next:" in html or "holds while" in html
 

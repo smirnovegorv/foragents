@@ -18,10 +18,11 @@ import shutil
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
-from . import config, panel, store, visibility
+from . import config, panel, store, threads, visibility
 
 TEMPLATES = config.ROOT / "templates"
 ZWSP_MARK = "<zwsp>"
+SUBDIRS = ("b", "t", "m")     # адреса, треды, сообщения
 
 
 def environment() -> Environment:
@@ -55,37 +56,75 @@ def visible_body(text: str) -> str:
 
 
 def render(out_dir: pathlib.Path) -> dict:
+    """Каталог тредов, страницы тредов и сообщений, панель — за один проход.
+
+    К видимому применяются тир по умолчанию и состояние `live`, как в выдаче
+    агенту. Квота слотов §5 не применяется: она защищает ленту, которую читают
+    с конца, а это архив, где у каждого сообщения свой адрес, и скрыть здесь
+    значило бы сделать сообщение недостижимым.
+    """
     env = environment()
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "b").mkdir(exist_ok=True)
-
     shutil.copyfile(TEMPLATES / "style.css", out_dir / "style.css")
 
     data = panel.snapshot()
     totals = store.totals()
-    addresses = store.live_addresses(limit=200)
-    recent = store.recent(0, 20, visibility.DEFAULT_MIN_TIER)
+    rows = store.visible(visibility.DEFAULT_MIN_TIER)
+    board = threads.build(rows, store.refs(), store.states())
 
-    (out_dir / "index.html").write_text(
-        env.get_template("panel.html").render(
-            data=data, totals=totals, recent=recent, addresses=addresses[:20],
-            chart=sparkline(data["daily"]), base=config.BASE_URL,
-            code_rev=config.CODE_REV, show_solo=visibility.show_solo()),
-        encoding="utf-8")
+    by_address: dict[str, list] = {}
+    for thread in board:
+        for name in thread["addrs"]:
+            by_address.setdefault(name, []).append(thread)
+    # Порядок разделов — как в /index: по числу различных личностей (§5).
+    sections = [{"name": a["name"], "threads": len(by_address[a["name"]])}
+                for a in store.live_addresses(limit=10_000)
+                if a["name"] in by_address]
 
-    written = 1
-    for address in addresses:
-        rows = store.at_address(address["name"], 0, 200,
-                                visibility.DEFAULT_MIN_TIER)
-        shown, notes = visibility.apply(list(rows), 100)
-        (out_dir / "b" / f"{slug(address['name'])}.html").write_text(
-            env.get_template("address.html").render(
-                address=address, messages=shown, notes=notes,
-                base=config.BASE_URL, code_rev=config.CODE_REV),
-            encoding="utf-8")
-        written += 1
+    common = {"base": config.BASE_URL, "code_rev": config.CODE_REV}
+    pages: dict[str, str] = {}
 
-    return {"files": written, "addresses": len(addresses)}
+    catalog = env.get_template("board.html")
+    pages["index.html"] = catalog.render(
+        threads=board, sections=sections, address=None, root="",
+        message_count=len(rows),
+        status=f"{data['verdict']} · {plural(totals['messages'], 'message')}",
+        **common)
+    for section in sections:
+        listed = by_address[section["name"]]
+        pages[f"b/{slug(section['name'])}.html"] = catalog.render(
+            threads=listed, sections=sections, address=section["name"],
+            root="../", message_count=sum(t["count"] for t in listed),
+            status=None, **common)
+
+    thread_page = env.get_template("thread.html")
+    message_page = env.get_template("message.html")
+    for thread in board:
+        pages[f"t/{thread['id']}.html"] = thread_page.render(
+            thread=thread, **common)
+        for message in thread["messages"]:
+            if not message.get("gone"):
+                pages[f"m/{message['id']}.html"] = message_page.render(
+                    m=message, thread=thread, **common)
+
+    pages["stats.html"] = env.get_template("stats.html").render(
+        data=data, totals=totals, chart=sparkline(data["daily"]), **common)
+
+    for sub in SUBDIRS:
+        (out_dir / sub).mkdir(exist_ok=True)
+    for name, text in pages.items():
+        (out_dir / name).write_text(text, encoding="utf-8")
+
+    # Страница снятого сообщения, опустевшего треда или адреса обязана
+    # исчезнуть на этом же проходе: «снятое выпадает на следующем tick» (§10)
+    # относится к файлам, а не только к ссылкам на них.
+    stale = [path for sub in SUBDIRS for path in (out_dir / sub).glob("*.html")
+             if f"{sub}/{path.name}" not in pages]
+    for path in stale:
+        path.unlink()
+
+    return {"files": len(pages), "threads": len(board), "messages": len(rows),
+            "removed": len(stale)}
 
 
 def sparkline(daily, width: int = 640, height: int = 90) -> Markup:

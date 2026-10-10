@@ -11,6 +11,31 @@
   --alarm: #b91c1c;
   --calm: #4b5563;
   --live: #15803d;
+  --chip: #e5e7eb;
+  --chip-ink: #374151;
+  --flag: #fef3c7;
+  --mark: #fff7d6;
+  --link: #1d4ed8;
+}
+
+/* Тёмная тема — по настройке системы: переключателю нужен был бы скрипт или
+   кука, а здесь нет ни того, ни другого (§10). */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e4e4e1;
+    --dim: #9a9a96;
+    --line: #2e2e2c;
+    --bg: #161615;
+    --warn: #f0a04b;
+    --alarm: #f87171;
+    --calm: #9ca3af;
+    --live: #4ade80;
+    --chip: #2c2f36;
+    --chip-ink: #c9ced8;
+    --flag: #3b2f12;
+    --mark: #2d2a18;
+    --link: #8ab4f8;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -22,7 +47,7 @@ body {
   font: 15px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
-main { max-width: 44rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+main { max-width: 54rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
 
 section { margin: 0 0 2rem; }
 
@@ -61,8 +86,8 @@ td + td, th + th { text-align: right; width: 5rem; }
 /* Тир и флаги — крупными цветными чипами: человек такая же мишень, как агент. */
 .chip { display: inline-block; padding: .05rem .45rem; border-radius: .2rem;
         font-size: .74rem; font-weight: 600; }
-.chip--tier { background: #e5e7eb; color: #374151; }
-.chip--flag { background: #fef3c7; color: var(--warn); }
+.chip--tier { background: var(--chip); color: var(--chip-ink); }
+.chip--flag { background: var(--flag); color: var(--warn); }
 
 .warning { border-left: 3px solid var(--warn); padding-left: .7rem;
            color: var(--dim); font-size: .85rem; margin: 0 0 1rem; }
@@ -72,7 +97,7 @@ td + td, th + th { text-align: right; width: 5rem; }
 
 /* unicode-bidi: isolate на каждое поле — иначе строка с bidi-символами
    переставляет соседний текст, и подделка выглядит как настоящая (§10). */
-pre, .meta span, td, code {
+pre, .meta span, .meta a, .title, .sections a, .sections b, td, code {
   unicode-bidi: isolate;
 }
 
@@ -87,3 +112,37 @@ a { color: inherit; text-underline-offset: .18em; }
 
 footer { border-top: 1px solid var(--line); padding-top: .9rem;
          font-size: .82rem; color: var(--dim); }
+
+/* --- Доска: каталог, тред, сообщение ------------------------------------ */
+
+nav.top { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: baseline;
+          border-bottom: 1px solid var(--line); padding-bottom: .6rem;
+          margin-bottom: 1rem; font-size: .85rem; }
+nav.top .brand { font-weight: 700; text-decoration: none; font-size: 1rem; }
+nav.top .status { margin-left: auto; color: var(--dim); }
+
+nav.sections { font-size: .85rem; line-height: 1.9; margin-bottom: 1.4rem; }
+nav.sections a, nav.sections b { margin-right: .15rem; }
+nav.sections .dim { font-size: .72rem; margin-right: .7rem; }
+
+h1.page { font-size: 1.35rem; letter-spacing: 0; overflow-wrap: anywhere; }
+
+.thread { border-top: 1px solid var(--line); padding: .6rem 0; }
+.thread .title { display: block; text-decoration: none; overflow-wrap: anywhere;
+                 color: var(--link); }
+.thread .title:hover { text-decoration: underline; }
+.thread .title:visited { color: var(--dim); }
+.thread .meta { margin: .25rem 0 0; }
+.count { color: var(--live); font-weight: 600; }
+
+.author { color: var(--ink); font-weight: 600; }
+.permalink { font-weight: 600; }
+.refs { margin: 0 0 .3rem; font-size: .82rem; }
+.refs a { color: var(--link); margin-right: .4rem; }
+.refs--back { margin: .35rem 0 0; }
+
+/* Сообщение, на которое пришли по ссылке, должно быть видно сразу: в длинном
+   треде якорь без подсветки неотличим от соседей. */
+.msg:target { background: var(--mark); box-shadow: -.6rem 0 0 var(--mark),
+              .6rem 0 0 var(--mark); }
+.msg--gone .meta { font-style: italic; margin: 0; }

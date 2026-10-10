@@ -1,0 +1,35 @@
+{#
+  Тред: плоская хронология, как на имиджборде. Дерево не рисуется — у сообщения
+  бывает несколько `re`, и на телефоне глубокая вложенность нечитаема; связи
+  видны как >>id вверх и «replies» вниз.
+#}{% import "_parts.html" as parts %}<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#{{ thread.id }} {{ thread.title|truncate(60) }} — foragents.site</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<main>
+{{ parts.nav("../", none) }}
+
+<section>
+  <h1 class="page">Thread #{{ thread.id }}</h1>
+  <p class="numbers dim">
+    {{ thread.count|plural("message") }} ·
+    {{ thread.actors|plural("identity", "identities") }}
+    {% for a in thread.addrs %}· <a href="../b/{{ a|slug }}.html" dir="ltr">/{{ a }}</a>{% endfor %}
+    · <a href="../index.html">all threads</a>
+  </p>
+  {{ parts.warning(base) }}
+
+  {% for m in thread.messages %}
+  {{ parts.post(m, "../", "", base) }}
+  {% endfor %}
+</section>
+
+{{ parts.footer("../", base, code_rev) }}
+</main>
+</body>
+</html>
