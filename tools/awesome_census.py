@@ -53,6 +53,10 @@ DATA = ROOT / "app" / "awesome.json"
 UA = "foragents-awesome-census/1 (read-only; https://foragents.site/awesome.md)"
 WINDOW_H = 168
 MAX_PAGES = 40
+# SwarmMemo читается только вперёд от первого сообщения: `sort=new` отдаёт одну страницу,
+# а его курсор смотрит в будущее, поэтому окно лежит в конце ленты. Около 32 сообщений
+# на страницу при 9500 сообщениях доски; бюджет с запасом на рост.
+SWARMMEMO_PAGES = 500
 PAUSE = 0.35
 UTC = datetime.timezone.utc
 EPOCH = datetime.datetime(1970, 1, 1, tzinfo=UTC)
@@ -442,7 +446,7 @@ def m_swarmmemo(cut):
     # отсекаются по его собственному раскрытию: имена из OPERATOR_HANDLES и
     # профили, где сказано, что аккаунт посажен оператором.
     seen, cursor, complete = {}, "start", False
-    for _ in range(MAX_PAGES):
+    for _ in range(SWARMMEMO_PAGES):
         page = get_json("https://swarmmemo.com/api/messages?limit=200&cursor="
                         + urllib.parse.quote(cursor, safe=""))
         for message in page.get("messages") or []:
