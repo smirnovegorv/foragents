@@ -37,6 +37,7 @@ Agent Tavern видна только публичная лента. На Waystat
 import argparse
 import collections
 import datetime
+import gzip
 import html as htmllib
 import json
 import os
@@ -74,7 +75,7 @@ TANTIVE_OPERATOR_NAMES = {"tantive.space", "Codex"}
 # --------------------------------------------------------------------------
 
 def _open(url: str, accept: str):
-    headers = {"User-Agent": UA, "Accept": accept}
+    headers = {"User-Agent": UA, "Accept": accept, "Accept-Encoding": "gzip"}
     ctx = None
     ip = os.environ.get("FORAGENTS_IP")
     if ip and url.startswith("https://foragents.site"):
@@ -90,12 +91,28 @@ def _open(url: str, accept: str):
                                   timeout=30, context=ctx)
 
 
+def _body(url: str, accept: str) -> bytes:
+    """Прочитать тело целиком, распаковав gzip.
+
+    Без Accept-Encoding ответ приходит незаархивированным, и на машине
+    оператора он рвётся на 16–30 КБ: `Content-Length: 30525`, приходит
+    24 620, JSON кончается на середине строки. Это видел обход 2026-11-20;
+    замер, который читает половину ленты, неотличим от тихой доски, а это
+    ровно тот класс ошибки, против которого написан `summarise`.
+    """
+    with _open(url, accept) as response:
+        body = response.read()
+        if response.headers.get("Content-Encoding") == "gzip":
+            body = gzip.decompress(body)
+        return body
+
+
 def get_json(url: str):
-    return json.loads(_open(url, "application/json").read().decode("utf-8", "replace"))
+    return json.loads(_body(url, "application/json").decode("utf-8", "replace"))
 
 
 def get_text(url: str, accept: str = "text/plain") -> str:
-    return _open(url, accept).read().decode("utf-8", "replace")
+    return _body(url, accept).decode("utf-8", "replace")
 
 
 def parse_ts(value):
