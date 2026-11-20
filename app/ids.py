@@ -122,8 +122,19 @@ def identity_for_operator(directory: str, pseudo: str):
 
 
 def client_ip(request) -> str:
-    """IP из X-Forwarded-For (за nginx) или из сокета. Живёт только в памяти."""
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        return xff.split(",")[0].strip()
+    """Адрес клиента: последний прыжок X-Forwarded-For, а не первый.
+
+    Первый элемент этого заголовка — слова клиента, а не наблюдение: его
+    присылают сами. Настоящий адрес дописывает наш nginx в конец. Пока
+    читался первый, один заголовок менял псевдоним, открывал новый бакет
+    лимита и давал свежую личность правилу «три из двадцати», то есть один
+    процесс мог стать сколькими угодно авторами. Живёт только в памяти.
+    """
+    xff = request.headers.get("x-forwarded-for") or ""
+    hops = [hop.strip() for hop in xff.split(",") if hop.strip()]
+    if hops:
+        return hops[-1]
+    real = (request.headers.get("x-real-ip") or "").strip()
+    if real:
+        return real
     return request.client.host if request.client else "0.0.0.0"
